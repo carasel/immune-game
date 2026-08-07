@@ -101,6 +101,32 @@ export const balance = {
   maxPathogens: 250,
 
   // ---------------------------------------------------------------------------
+  // IMMUNE CELLS
+  // Each cell type's own numbers live in content/cells.ts. These apply to all of
+  // them at once.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * How fast an immune cell moves while squeezing between body cells, as a
+   * fraction of its normal speed. This is real: white blood cells crawl through
+   * tissue by deforming themselves, and it's slow going. It also means the open
+   * channels between the blobs are genuinely worth using.
+   */
+  squeezeSpeedMultiplier: 0.4,
+
+  /**
+   * Do immune cells shove each other apart, or can they stack up?
+   * True keeps them spread out; false lets a dozen pile onto one bacterium.
+   */
+  immuneCellsBlockEachOther: true,
+
+  /**
+   * At zero energy the tissue can't feed its immune cells any more and they
+   * start to starve: one dies every this many seconds. Lower is more brutal.
+   */
+  starvationSecondsPerCell: 4,
+
+  // ---------------------------------------------------------------------------
   // TIME
   // The simulation always runs at a fixed 60 ticks per second. These speeds
   // change how many ticks happen per drawn frame, so the game behaves

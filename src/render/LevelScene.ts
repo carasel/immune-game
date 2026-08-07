@@ -1,13 +1,15 @@
 import Phaser from 'phaser'
 import { balance } from '../content/balance'
+import { findImmuneCell, type ImmuneCellDef } from '../content/cells'
 import { theCut, TISSUE_VIEW } from '../content/levels'
 import { findPathogen } from '../content/pathogens'
 import type { Vec2 } from '../sim/geometry'
+import type { ImmuneCell } from '../sim/immuneCells'
 import type { EdgeRegion } from '../sim/openings'
 import type { BodyCell } from '../sim/tissue'
 import { TICKS_PER_SECOND, World } from '../sim/world'
 import { HudScene } from './HudScene'
-import { font, palette, pathogenPalette, textColour } from './palette'
+import { font, immunePalette, palette, pathogenPalette, textColour } from './palette'
 
 const MS_PER_TICK = 1000 / TICKS_PER_SECOND
 
@@ -18,6 +20,7 @@ export class LevelScene extends Phaser.Scene {
   private world!: World
   private tissueGraphics!: Phaser.GameObjects.Graphics
   private pathogenGraphics!: Phaser.GameObjects.Graphics
+  private immuneGraphics!: Phaser.GameObjects.Graphics
 
   /**
    * Each body cell's outline, worked out once. Body cells never move, so there
@@ -47,6 +50,9 @@ export class LevelScene extends Phaser.Scene {
 
     // Above the tissue, so you can see bacteria sitting on a cell they're eating.
     this.pathogenGraphics = this.add.graphics()
+
+    // Above the bacteria, so a swallowed one is drawn inside its macrophage.
+    this.immuneGraphics = this.add.graphics()
 
     // After both, so nothing covers the labels up.
     this.drawLabels()
@@ -80,6 +86,7 @@ export class LevelScene extends Phaser.Scene {
 
     this.drawTissue()
     this.drawPathogens()
+    this.drawImmuneCells()
   }
 
   /** Vessels and wounds. Drawn once, underneath the tissue. */
@@ -147,10 +154,21 @@ export class LevelScene extends Phaser.Scene {
     graphics.clear()
 
     for (const cell of this.world.bodyCells) {
-      if (!cell.alive) continue
-
       const outline = this.outlines.get(cell.id)
       if (!outline) continue
+
+      if (!cell.alive) {
+        // A dead body cell fades away but leaves its outline behind — an empty
+        // husk, sitting there until a macrophage comes and clears it up.
+        if (!cell.debris) continue
+
+        graphics.fillStyle(palette.debrisFill, 0.16)
+        graphics.fillPoints(outline, true)
+
+        graphics.lineStyle(2, palette.debrisEdge, 0.65)
+        graphics.strokePoints(outline, true)
+        continue
+      }
 
       // Fade towards a sickly colour as it gets eaten, so you can see which
       // cells are in trouble before they vanish.
@@ -194,6 +212,101 @@ export class LevelScene extends Phaser.Scene {
 
       graphics.restore()
     }
+  }
+
+  /**
+   * Macrophages: big yellow pears, narrow end pointing where they're going.
+   *
+   * A cell that has just swallowed something swells up, with its meal showing
+   * through in the fat end and shrinking away as it gets digested. So you can
+   * always tell at a glance which of your macrophages are busy — and being busy
+   * is exactly when they can't help you.
+   */
+  private drawImmuneCells(): void {
+    const graphics = this.immuneGraphics
+    graphics.clear()
+
+    for (const cell of this.world.immuneCells) {
+      if (!cell.alive) continue
+
+      const def = findImmuneCell(cell.defId)
+      if (!def) continue
+
+      const colour = immunePalette[def.id]
+      if (!colour) continue
+
+      // 0 the instant it swallows something, 1 when it has finished digesting.
+      const digested = cell.meal ? 1 - cell.meal.secondsLeft / cell.meal.totalSeconds : 1
+      const swell = 1 + 0.14 * (1 - digested)
+
+      const outline = buildPearOutline(cell, def, swell)
+
+      graphics.fillStyle(colour.fill, 1)
+      graphics.fillPoints(outline, true)
+
+      graphics.lineStyle(2, colour.edge, 1)
+      graphics.strokePoints(outline, true)
+
+      // The nucleus sits forward of centre, out of the way of the belly.
+      const nucleus = insideCell(cell, def, -0.22)
+      graphics.fillStyle(colour.nucleus, 0.5)
+      graphics.fillCircle(nucleus.x, nucleus.y, def.radius * 0.28)
+
+      if (!cell.meal) continue
+
+      const meal = insideCell(cell, def, 0.36)
+      const size = def.radius * 0.44 * (1 - digested)
+      if (size < 1) continue
+
+      graphics.fillStyle(mealColour(cell.meal.pathogenDefId), 0.9)
+      graphics.fillCircle(meal.x, meal.y, size)
+    }
+  }
+}
+
+/** The colour of whatever a macrophage is digesting. Debris has no pathogen. */
+function mealColour(pathogenDefId: string | undefined): number {
+  const colour = pathogenDefId ? findPathogen(pathogenDefId)?.colour : undefined
+  return colour ? pathogenPalette[colour].fill : palette.debrisEdge
+}
+
+/**
+ * The cell's outline: a circle with its bulk pushed to the back and its front
+ * pinched in, built around the direction the cell is facing so the narrow end
+ * always leads. Egg-shaped more than pear-shaped, which is what we wanted.
+ *
+ * `nose` pinches the front in and `belly` fattens the back out, both as
+ * fractions of the radius, so nose 0 and belly 0 draws a plain circle.
+ *
+ * `swell` puffs the whole cell up while it has something inside it.
+ */
+function buildPearOutline(cell: ImmuneCell, def: ImmuneCellDef, swell: number): Vec2[] {
+  const segments = 22
+  const points: Vec2[] = []
+
+  for (let i = 0; i < segments; i++) {
+    const around = (i / segments) * Math.PI * 2
+    const reach =
+      def.radius * swell * (1 - def.nose * Math.cos(around) + def.belly * Math.cos(around * 2))
+    const angle = cell.angle + around
+
+    points.push({
+      x: cell.x + Math.cos(angle) * reach,
+      y: cell.y + Math.sin(angle) * reach,
+    })
+  }
+
+  return points
+}
+
+/**
+ * A point inside a cell, `back` fractions of its radius behind the centre.
+ * Negative for a point towards the nose.
+ */
+function insideCell(cell: ImmuneCell, def: ImmuneCellDef, back: number): Vec2 {
+  return {
+    x: cell.x - Math.cos(cell.angle) * def.radius * back,
+    y: cell.y - Math.sin(cell.angle) * def.radius * back,
   }
 }
 

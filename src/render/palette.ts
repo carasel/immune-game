@@ -11,6 +11,9 @@ export const palette = {
   nucleus: 0xbe4a63,
   /** What a body cell fades towards as it gets eaten. */
   tissueSick: 0x6b5a6e,
+  /** The empty outline a dead body cell leaves behind, until it's cleared away. */
+  debrisFill: 0x6b5a6e,
+  debrisEdge: 0x9a86a0,
 
   // Blood vessels — where your cells come in
   vessel: 0xa81f38,
@@ -42,6 +45,14 @@ export const pathogenPalette = {
   purple: { fill: 0xb45cff, edge: 0x6b1fb0 },
 }
 
+/**
+ * One entry per immune cell type, keyed by its `id` in content/cells.ts.
+ * Placeholders until they're drawn properly.
+ */
+export const immunePalette: Record<string, { fill: number; edge: number; nucleus: number }> = {
+  macrophage: { fill: 0xffd23f, edge: 0xc98a0b, nucleus: 0x8f5f00 },
+}
+
 export const textColour = {
   bright: '#eef1fb',
   dim: '#8d97bd',
@@ -49,6 +60,7 @@ export const textColour = {
   vessel: '#ff9aa8',
   entry: '#7df0e4',
   bacteria: '#82abff',
+  immune: '#ffd94a',
   lost: '#ff6b6b',
 }
 

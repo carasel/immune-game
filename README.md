@@ -26,16 +26,20 @@ npm run build       # typecheck + production build into dist/
 src/
   content/     the game's design, as data. No engine knowledge needed.
     balance.ts   every number that decides how the game feels
+    cells.ts     immune cells: size, speed, vision, what eating pays, upkeep
+    pathogens.ts the pathogens and their colours
     levels.ts    tissue layouts, vessel openings, pathogen entry points
   sim/         the simulation. Plain TypeScript — never imports Phaser.
     world.ts     the fixed-timestep tick
     tissue.ts    grows the body cells into blobs with channels between them
+    pathogens.ts bacteria: hunt by sight, eat body cells, split in two
+    immuneCells.ts  your cells: wander, hunt, swallow, clear up debris
     economy.ts   energy: income, costs, starvation
     openings.ts  turns "a vessel on the left, 30% down" into coordinates
     rng.ts       seeded randomness, so a level always builds the same
   render/      Phaser. Draws what the simulation reports.
-    LevelScene.ts  the tissue
-    HudScene.ts    energy, tissue count, clock, speed controls
+    LevelScene.ts  the tissue, the bacteria and the immune cells
+    HudScene.ts    energy, cell counts, clock, speed controls
     palette.ts     colours
 ```
 
@@ -54,7 +58,8 @@ Two rules keep this tidy as it grows:
 
 ## Where it's up to
 
-Day 1, steps 1–2 of the plan in GAME_DESIGN.md §10:
+Day 1 of the plan in GAME_DESIGN.md §10 is done — a losable game with no immune
+system:
 
 - [x] Vite + TypeScript + Phaser, fixed-timestep loop, pause / slow / fast
 - [x] Tissue: ~50 body cells in blobs, vessel openings, the wound
@@ -64,8 +69,14 @@ Day 1, steps 1–2 of the plan in GAME_DESIGN.md §10:
       cells, split in two
 - [x] Losing — energy hits zero and the tissue is lost
 
-Day 1 is done: a losable game with no immune system. Next is Day 2.
+Day 2 has started. The macrophage is in:
 
-- [ ] Neutrophils and macrophages
+- [x] Macrophages: wander, hunt by sight, swallow a bacterium whole and digest
+      it for two seconds, clear away the outlines dead body cells leave behind,
+      and pay you for both
+- [x] Squeezing through tissue at 40% speed, so the channels are worth using
+- [x] Upkeep per cell, and starvation at zero energy — you now lose only when
+      the energy is gone *and* the last cell has starved
+- [ ] Neutrophils
 - [ ] Click to select, click to command
 - [ ] The recruit panel

@@ -56,6 +56,8 @@ export function updatePathogen(
       if (target.health <= 0) {
         target.health = 0
         target.alive = false
+        // It leaves its outline behind for a macrophage to clear away.
+        target.debris = true
         ctx.onBodyCellDied(target)
       }
       return

@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { balance } from '../content/balance'
+import { findImmuneCell } from '../content/cells'
 import { HUD_HEIGHT, WORLD } from '../content/levels'
 import type { World } from '../sim/world'
 import { font, palette, textColour } from './palette'
@@ -17,7 +18,9 @@ export class HudScene extends Phaser.Scene {
   private world!: World
 
   private energyText!: Phaser.GameObjects.Text
+  private incomeText!: Phaser.GameObjects.Text
   private tissueText!: Phaser.GameObjects.Text
+  private immuneText!: Phaser.GameObjects.Text
   private bacteriaText!: Phaser.GameObjects.Text
   private clockText!: Phaser.GameObjects.Text
   private energyBar!: Phaser.GameObjects.Graphics
@@ -51,31 +54,48 @@ export class HudScene extends Phaser.Scene {
 
     this.energyBar = this.add.graphics()
 
-    this.tissueText = this.add
-      .text(306, midY, '', {
+    // Income sits with the energy bar, because that's what it feeds.
+    this.incomeText = this.add
+      .text(292, midY, '', {
         fontFamily: font.family,
-        fontSize: '14px',
+        fontSize: '13px',
+        color: textColour.energy,
+      })
+      .setOrigin(0, 0.5)
+
+    this.tissueText = this.add
+      .text(368, midY, '', {
+        fontFamily: font.family,
+        fontSize: '13px',
         color: textColour.bright,
       })
       .setOrigin(0, 0.5)
 
-    this.bacteriaText = this.add
-      .text(516, midY, '', {
+    this.immuneText = this.add
+      .text(492, midY, '', {
         fontFamily: font.family,
-        fontSize: '14px',
+        fontSize: '13px',
+        color: textColour.immune,
+      })
+      .setOrigin(0, 0.5)
+
+    this.bacteriaText = this.add
+      .text(602, midY, '', {
+        fontFamily: font.family,
+        fontSize: '13px',
         color: textColour.bacteria,
       })
       .setOrigin(0, 0.5)
 
-    // Far enough right that the readouts can't run underneath it, and still
-    // clear of the speed buttons.
+    // Right-aligned, so it grows leftwards into empty space rather than sliding
+    // underneath the speed buttons.
     this.clockText = this.add
-      .text(632, midY, '', {
+      .text(742, midY, '', {
         fontFamily: font.family,
-        fontSize: '14px',
+        fontSize: '13px',
         color: textColour.dim,
       })
-      .setOrigin(0, 0.5)
+      .setOrigin(1, 0.5)
 
     this.lostBanner = this.add
       .text(WORLD.width / 2, this.top / 2, 'TISSUE LOST', {
@@ -169,9 +189,17 @@ export class HudScene extends Phaser.Scene {
 
     const living = this.world.livingBodyCellCount
     const total = this.world.bodyCells.length
-    const perSecond = living * balance.incomePerBodyCellPerSecond
 
-    this.tissueText.setText(`Body cells  ${living}/${total}   (+${perSecond.toFixed(1)}/sec)`)
+    // What the tissue earns, minus what the immune cells cost to keep. Watching
+    // this go negative is the clearest warning the game gives you.
+    const perSecond = living * balance.incomePerBodyCellPerSecond - this.upkeepPerSecond
+    const sign = perSecond < 0 ? '' : '+'
+
+    this.incomeText.setText(`${sign}${perSecond.toFixed(1)}/sec`)
+    this.incomeText.setColor(perSecond < 0 ? textColour.lost : textColour.energy)
+
+    this.tissueText.setText(`Body cells  ${living}/${total}`)
+    this.immuneText.setText(this.immuneSummary())
 
     const bacteria = this.world.livingPathogenCount
     this.bacteriaText.setText(bacteria === 0 ? '' : `Bacteria  ${bacteria}`)
@@ -193,6 +221,29 @@ export class HudScene extends Phaser.Scene {
       const active = button.speed === speed
       button.box.setFillStyle(active ? palette.hudButtonActive : palette.hudButton)
     }
+  }
+
+  /** "Macrophages  2", and one entry per type once there are more of them. */
+  private immuneSummary(): string {
+    const parts: string[] = []
+
+    for (const [defId, count] of this.world.immuneCellCounts) {
+      const def = findImmuneCell(defId)
+      parts.push(`${def ? def.name : defId}s  ${count}`)
+    }
+
+    return parts.join('   ')
+  }
+
+  private get upkeepPerSecond(): number {
+    let total = 0
+
+    for (const [defId, count] of this.world.immuneCellCounts) {
+      const def = findImmuneCell(defId)
+      if (def) total += def.upkeepPerSecond * count
+    }
+
+    return total
   }
 
   private drawEnergyBar(energy: number): void {

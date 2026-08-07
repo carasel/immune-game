@@ -43,6 +43,17 @@ export interface TissueBlobDef {
   size?: number
 }
 
+/**
+ * Immune cells that are already in the tissue when the level starts — the
+ * garrison. Cells you recruit later arrive at a vessel opening instead and have
+ * to walk in.
+ */
+export interface StartingCellDef {
+  /** Which cell, by `id` from content/cells.ts. */
+  cell: string
+  count: number
+}
+
 /** One batch of pathogens arriving. */
 export interface WaveDef {
   /** Seconds after the level starts. */
@@ -79,6 +90,8 @@ export interface LevelDef {
   clusterCount: number
   openings: EdgeRegionDef[]
   entries: EdgeRegionDef[]
+  /** Which immune cells are already on duty when the level begins. */
+  startingCells: StartingCellDef[]
   /** When the pathogens turn up, and how many. */
   waves: WaveDef[]
 }
@@ -125,6 +138,10 @@ export const theCut: LevelDef = {
 
   // Where the bacteria get in.
   entries: [{ id: 'the-cut', label: 'the cut', edge: 'top', along: 0.5, width: 150, depth: 42 }],
+
+  // Two macrophages already patrolling. Enough to feel like you have help, not
+  // enough to hold the line on their own.
+  startingCells: [{ cell: 'macrophage', count: 2 }],
 
   // A couple get in through the cut, then more as the wound stays open. They
   // also split in two on their own, so later waves land on top of a growing

@@ -11,6 +11,12 @@ export interface BodyCell {
   /** 1 is healthy, 0 is dead. */
   health: number
   alive: boolean
+  /**
+   * A dead body cell fades away but leaves its outline behind: an empty husk
+   * that a macrophage has to come and clear up. True from the moment it dies
+   * until a macrophage eats it, and then it is gone for good.
+   */
+  debris: boolean
   /** A fixed number per cell, used to give it its own organic outline. */
   wobbleSeed: number
 }
@@ -161,6 +167,7 @@ export function generateBodyCells(
       radius,
       health: 1,
       alive: true,
+      debris: false,
       wobbleSeed: rng() * Math.PI * 2,
     })
   }

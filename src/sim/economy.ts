@@ -13,6 +13,7 @@ export class Economy {
   totalEarned = 0
   totalSpent = 0
   totalLostToDeaths = 0
+  totalLostToUpkeep = 0
 
   constructor(startingEnergy: number = balance.startingEnergy) {
     this.energy = startingEnergy
@@ -27,8 +28,15 @@ export class Economy {
 
   /** The big drain. Called once per body cell death. */
   chargeForBodyCellDeath(): void {
-    this.energy -= balance.energyLostWhenABodyCellDies
+    this.drain(balance.energyLostWhenABodyCellDies)
     this.totalLostToDeaths += balance.energyLostWhenABodyCellDies
+  }
+
+  /** The secondary drain. Called every tick, for each living immune cell. */
+  chargeUpkeep(perSecond: number, seconds: number): void {
+    const amount = perSecond * seconds
+    this.drain(amount)
+    this.totalLostToUpkeep += amount
   }
 
   canAfford(cost: number): boolean {
@@ -52,5 +60,14 @@ export class Economy {
   /** True once the tissue can no longer pay for itself. Starvation begins. */
   get isEmpty(): boolean {
     return this.energy <= 0
+  }
+
+  /**
+   * Energy stops at zero rather than going negative. Zero is a state you fight
+   * your way out of — your cells starving one by one — not a hole you have to
+   * refill before anything good can happen. What was lost is still counted.
+   */
+  private drain(amount: number): void {
+    this.energy = Math.max(0, this.energy - amount)
   }
 }

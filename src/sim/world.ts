@@ -1,8 +1,15 @@
 import { balance } from '../content/balance'
+import { findImmuneCell, type ImmuneCellDef } from '../content/cells'
 import type { LevelDef, WaveDef } from '../content/levels'
 import { findPathogen, type PathogenDef } from '../content/pathogens'
 import { Economy } from './economy'
-import type { Size } from './geometry'
+import { rectContains, type Size } from './geometry'
+import {
+  separateImmuneCells,
+  updateImmuneCell,
+  type ImmuneCell,
+  type ImmuneCellContext,
+} from './immuneCells'
 import { resolveEdgeRegions, type EdgeRegion } from './openings'
 import { updatePathogen, type Pathogen } from './pathogens'
 import { makeRng, randomRange, type Rng } from './rng'
@@ -29,6 +36,7 @@ export class World {
 
   readonly bodyCells: BodyCell[]
   readonly pathogens: Pathogen[] = []
+  readonly immuneCells: ImmuneCell[] = []
   readonly economy: Economy
 
   tickCount = 0
@@ -39,7 +47,10 @@ export class World {
   private lost = false
   private readonly rng: Rng
   private nextPathogenId = 1
+  private nextImmuneCellId = 1
   private nextWave = 0
+  /** Counts down to the next starvation death while energy is at zero. */
+  private starveIn = balance.starvationSecondsPerCell
 
   constructor(level: LevelDef, bounds: Size) {
     this.level = level
@@ -58,6 +69,7 @@ export class World {
     )
 
     this.economy = new Economy(balance.startingEnergy)
+    this.spawnStartingCells()
   }
 
   /**
@@ -72,9 +84,11 @@ export class World {
     this.tickCount++
     this.releaseDueWaves()
     this.updatePathogens()
+    this.updateImmuneCells()
     this.economy.addIncome(this.livingBodyCellCount, SECONDS_PER_TICK)
+    this.starveImmuneCells()
 
-    if (!this.lost && this.economy.energy <= 0) {
+    if (!this.lost && this.economy.isEmpty && this.livingImmuneCellCount === 0) {
       this.lost = true
       this.lostAtSeconds = this.elapsedSeconds
     }
@@ -100,11 +114,39 @@ export class World {
     return count
   }
 
+  get livingImmuneCellCount(): number {
+    let count = 0
+    for (const cell of this.immuneCells) {
+      if (cell.alive) count++
+    }
+    return count
+  }
+
+  /** Dead body cells still waiting for a macrophage to clear them up. */
+  get debrisCount(): number {
+    let count = 0
+    for (const cell of this.bodyCells) {
+      if (cell.debris) count++
+    }
+    return count
+  }
+
+  /** How many of each immune cell type are alive, keyed by their def id. */
+  get immuneCellCounts(): Map<string, number> {
+    const counts = new Map<string, number>()
+
+    for (const cell of this.immuneCells) {
+      if (!cell.alive) continue
+      counts.set(cell.defId, (counts.get(cell.defId) ?? 0) + 1)
+    }
+
+    return counts
+  }
+
   /**
-   * The tissue ran out of energy. Once immune cells exist this becomes "no
-   * energy AND no immune cells left", with starvation killing them off one at a
-   * time first — see GAME_DESIGN.md section 2. For now there are no immune
-   * cells, so zero energy is the end of it.
+   * Out of energy AND out of cells. Zero energy on its own is not the end: the
+   * cells starve one at a time, so there is a panicky window where killing
+   * something can still turn it around — see GAME_DESIGN.md section 2.
    */
   get isLost(): boolean {
     return this.lost
@@ -163,6 +205,129 @@ export class World {
       divideIn: def.divideEverySeconds * randomRange(this.rng, 0.6, 1.1),
       wanderIn: randomRange(this.rng, 0, def.wanderChangeSeconds),
     })
+  }
+
+  /**
+   * The immune cells already on duty when the level starts. Cells you recruit
+   * later arrive at a vessel opening instead and have to walk in.
+   */
+  private spawnStartingCells(): void {
+    for (const garrison of this.level.startingCells) {
+      const def = findImmuneCell(garrison.cell)
+      if (!def) {
+        console.error(
+          `Level "${this.level.id}" starts with "${garrison.cell}", ` +
+            'which is not a cell id in content/cells.ts.',
+        )
+        continue
+      }
+
+      for (let i = 0; i < garrison.count; i++) {
+        this.addImmuneCell(def)
+      }
+    }
+  }
+
+  /** Drops a cell into the open channels between the blobs of tissue. */
+  private addImmuneCell(def: ImmuneCellDef): void {
+    const margin = def.radius + balance.edgeMargin
+
+    let x = this.bounds.width / 2
+    let y = this.bounds.height / 2
+
+    // If the tissue is too packed to find a clear spot, the last guess gets used
+    // anyway. Immune cells can squeeze through tissue, so a tight start is
+    // survivable rather than broken.
+    for (let attempt = 0; attempt < 400; attempt++) {
+      x = randomRange(this.rng, margin, this.bounds.width - margin)
+      y = randomRange(this.rng, margin, this.bounds.height - margin)
+      if (this.isRoomForImmuneCell(def, x, y)) break
+    }
+
+    this.immuneCells.push({
+      id: this.nextImmuneCellId++,
+      defId: def.id,
+      x,
+      y,
+      angle: this.rng() * Math.PI * 2,
+      alive: true,
+      ageSeconds: 0,
+      wanderIn: randomRange(this.rng, 0, def.wanderChangeSeconds),
+      meal: null,
+    })
+  }
+
+  /** Clear of tissue, clear of other immune cells, and not sitting in a wound. */
+  private isRoomForImmuneCell(def: ImmuneCellDef, x: number, y: number): boolean {
+    for (const entry of this.entries) {
+      if (rectContains(entry.corridor, x, y, def.radius)) return false
+    }
+
+    for (const bodyCell of this.bodyCells) {
+      if (!bodyCell.alive) continue
+      if (Math.hypot(bodyCell.x - x, bodyCell.y - y) < def.radius + bodyCell.radius) return false
+    }
+
+    for (const other of this.immuneCells) {
+      if (!other.alive) continue
+      const otherDef = findImmuneCell(other.defId)
+      if (!otherDef) continue
+      if (Math.hypot(other.x - x, other.y - y) < def.radius + otherDef.radius) return false
+    }
+
+    return true
+  }
+
+  private updateImmuneCells(): void {
+    const context: ImmuneCellContext = {
+      dt: SECONDS_PER_TICK,
+      bodyCells: this.bodyCells,
+      pathogens: this.pathogens,
+      bounds: this.bounds,
+      rng: this.rng,
+      // Eating things is what pays for the whole immune system.
+      onMealFinished: (_cell, meal) => this.economy.credit(meal.reward),
+    }
+
+    for (const cell of this.immuneCells) {
+      if (!cell.alive) continue
+
+      const def = findImmuneCell(cell.defId)
+      if (!def) continue
+
+      updateImmuneCell(cell, def, context)
+
+      // Only living cells cost anything. A cell that died this tick doesn't.
+      if (cell.alive) this.economy.chargeUpkeep(def.upkeepPerSecond, SECONDS_PER_TICK)
+    }
+
+    separateImmuneCells(this.immuneCells, this.bounds)
+  }
+
+  /**
+   * At zero energy the tissue can't feed its immune cells, and they starve one
+   * at a time with a few seconds between each. Visible, and slow enough that
+   * clearing a bacterium can still save the rest of them.
+   */
+  private starveImmuneCells(): void {
+    if (!this.economy.isEmpty) {
+      this.starveIn = balance.starvationSecondsPerCell
+      return
+    }
+
+    this.starveIn -= SECONDS_PER_TICK
+    if (this.starveIn > 0) return
+
+    this.starveIn = balance.starvationSecondsPerCell
+
+    // The oldest one goes first.
+    let oldest: ImmuneCell | undefined
+    for (const cell of this.immuneCells) {
+      if (!cell.alive) continue
+      if (!oldest || cell.ageSeconds > oldest.ageSeconds) oldest = cell
+    }
+
+    if (oldest) oldest.alive = false
   }
 
   private updatePathogens(): void {

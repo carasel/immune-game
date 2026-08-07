@@ -54,7 +54,9 @@ its income, and the tissue hole it leaves behind. This is deliberate.
 
 ### Starting numbers
 
-These live in `src/content/balance.ts` and are the first thing to tune. They are guesses.
+The global ones live in `src/content/balance.ts`; each immune cell's own costs and
+earnings live beside its other stats in `src/content/cells.ts`. They are the first thing to
+tune, and all of them are guesses.
 
 ```
 startingEnergy            100
@@ -368,7 +370,6 @@ campaign → eosinophils → threadworm and hookworm levels.
 
 ## 11. Open questions
 
-- Should immune cells block **each other**, or only body cells? (Assumed: yes, they block.)
 - Do bacteria collide with anything at all, or pass through everything?
 - Does a wave arrive on a timer, or when the previous wave is cleared?
 - What does the mast cell do mechanically? Must be biologically accurate. (Inflaming an
@@ -400,3 +401,27 @@ campaign → eosinophils → threadworm and hookworm levels.
 - Pathogens don't normally use the openings; the sepsis level is parked as a later idea.
 - Mast cell deferred until it fits naturally.
 - Simulation is separate from Phaser; fixed timestep; all content in data files.
+
+*2026-08-07*
+
+- Macrophages are **large and yellow**, always pointing their narrow end where they are
+  going. That is what a crawling white blood cell really looks like: it reaches forward with
+  a thin edge and drags its bulk along behind. Closer to an egg than a pear in the end, which
+  is the look we were after — `nose` and `belly` in `cells.ts` tune it.
+- **Eating takes time.** A macrophage swallows a bacterium whole — it stops being a threat
+  immediately — then spends two seconds digesting, unable to move or hunt, with the meal
+  visible inside it. So a swarm can walk straight past a macrophage that is busy, and that is
+  the macrophage's whole weakness.
+- The energy for a meal arrives when the meal is **finished**, not when it starts.
+- **Debris is the outline a dead body cell leaves behind.** A dying cell fades away but its
+  outline stays, and a macrophage has to come and clear it up for a smaller bonus. Nothing
+  new to draw, and the mess is visible until someone deals with it.
+- **Pathogens first, debris second.** An infection won't wait; the mess will.
+- Level 1 starts with **2 macrophages**, placed in the open channels.
+- **Energy floors at zero** rather than going negative. Zero is a state you fight your way
+  out of — cells starving one at a time — not a hole to refill before anything good can
+  happen.
+- Losing is now **zero energy AND no immune cells left**, with one cell starving every 4
+  seconds until then.
+- Immune cells **do** block each other (`immuneCellsBlockEachOther` in balance.ts, so it
+  really was a one-line change).
