@@ -448,8 +448,11 @@ campaign → eosinophils → threadworm and hookworm levels.
   ignores everything.
 - **Vessel width does nothing yet.** Recruits arrive at once rather than queueing. Making a
   narrow vessel a real bottleneck is worth doing once we know the fights need it.
-- The HUD is **two rows** now — readouts on top, recruiting underneath — which cost the play
-  area 36px of height.
+- The HUD is **one line of symbols**: a lightning bolt for energy, and little pictures of a
+  body cell, a macrophage and a bacterium instead of their names. The pictures are drawn by
+  the same code and content as the real things (`render/shapes.ts`, `render/icons.ts`), so
+  they can't drift apart. Recruiting is a single **+** button that opens a floating menu,
+  which is where the names and costs live — words cost height, pictures don't.
 - **Starving has to be seen to happen.** A cell dying at zero energy withers away over a
   second instead of vanishing, and the HUD blinks a warning with a countdown to the next one
   while it is happening. Playtested as a bug — a macrophage disappearing with no explanation

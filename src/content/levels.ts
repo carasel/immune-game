@@ -102,8 +102,8 @@ export interface LevelDef {
  * TISSUE_VIEW. All level and simulation coordinates use TISSUE_VIEW.
  */
 export const WORLD = { width: 960, height: 600 }
-/** Two rows: the readouts along the top, the recruit buttons underneath. */
-export const HUD_HEIGHT = 84
+/** One line of symbols along the bottom. Words cost height; pictures don't. */
+export const HUD_HEIGHT = 48
 export const TISSUE_VIEW = { width: WORLD.width, height: WORLD.height - HUD_HEIGHT }
 
 /**

@@ -3,20 +3,28 @@ import { balance } from '../content/balance'
 import { findImmuneCell, immuneCells } from '../content/cells'
 import { HUD_HEIGHT, WORLD } from '../content/levels'
 import type { World } from '../sim/world'
-import { font, immunePalette, palette, textColour } from './palette'
+import {
+  drawBacteriumIcon,
+  drawBodyCellIcon,
+  drawEnergyIcon,
+  drawMacrophageIcon,
+} from './icons'
+import { font, palette, textColour } from './palette'
 
 interface SpeedButton {
   speed: number
   box: Phaser.GameObjects.Rectangle
 }
 
-interface RecruitButton {
+interface RecruitRow {
   defId: string
   cost: number
-  box: Phaser.GameObjects.Rectangle
+  row: Phaser.GameObjects.Rectangle
   label: Phaser.GameObjects.Text
-  swatch: Phaser.GameObjects.Arc
 }
+
+/** Left of the speed buttons, which are pinned to the right-hand end. */
+const RECRUIT_BUTTON_X = 700
 
 /**
  * The bar along the bottom: energy, how much tissue is left, the clock, and the
@@ -37,14 +45,15 @@ export class HudScene extends Phaser.Scene {
   private lostSubtitle!: Phaser.GameObjects.Text
 
   private recruitHint!: Phaser.GameObjects.Text
+  private recruitButton!: Phaser.GameObjects.Rectangle
+  private recruitMenu!: Phaser.GameObjects.Container
+  private menuBounds!: Phaser.Geom.Rectangle
 
   private speedButtons: SpeedButton[] = []
-  private recruitButtons: RecruitButton[] = []
+  private recruitRows: RecruitRow[] = []
 
   private readonly top = WORLD.height - HUD_HEIGHT
-  /** Two rows: readouts along the top, recruiting underneath. */
-  private readonly readoutY = WORLD.height - HUD_HEIGHT + 22
-  private readonly recruitY = WORLD.height - HUD_HEIGHT + 58
+  private readonly readoutY = WORLD.height - HUD_HEIGHT / 2
 
   constructor() {
     super('hud')
@@ -58,10 +67,13 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0, 0)
 
     const midY = this.readoutY
-    const recruitY = this.recruitY
 
+    // Icons are drawn once — they never change. Only the numbers beside them do.
+    const icons = this.add.graphics()
+
+    drawEnergyIcon(icons, 24, midY, 11)
     this.energyText = this.add
-      .text(16, midY, '', {
+      .text(40, midY, '', {
         fontFamily: font.family,
         fontSize: '16px',
         color: textColour.energy,
@@ -72,31 +84,34 @@ export class HudScene extends Phaser.Scene {
 
     // Income sits with the energy bar, because that's what it feeds.
     this.incomeText = this.add
-      .text(292, midY, '', {
+      .text(240, midY, '', {
         fontFamily: font.family,
         fontSize: '13px',
         color: textColour.energy,
       })
       .setOrigin(0, 0.5)
 
+    drawBodyCellIcon(icons, 330, midY, 9)
     this.tissueText = this.add
-      .text(368, midY, '', {
+      .text(344, midY, '', {
         fontFamily: font.family,
         fontSize: '13px',
         color: textColour.bright,
       })
       .setOrigin(0, 0.5)
 
+    drawMacrophageIcon(icons, 428, midY, 10)
     this.immuneText = this.add
-      .text(492, midY, '', {
+      .text(444, midY, '', {
         fontFamily: font.family,
         fontSize: '13px',
         color: textColour.immune,
       })
       .setOrigin(0, 0.5)
 
+    drawBacteriumIcon(icons, 504, midY, 10)
     this.bacteriaText = this.add
-      .text(602, midY, '', {
+      .text(522, midY, '', {
         fontFamily: font.family,
         fontSize: '13px',
         color: textColour.bacteria,
@@ -104,9 +119,9 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0, 0.5)
 
     // Right-aligned, so it grows leftwards into empty space rather than sliding
-    // underneath the speed buttons.
+    // underneath the buttons.
     this.clockText = this.add
-      .text(742, midY, '', {
+      .text(660, midY, '', {
         fontFamily: font.family,
         fontSize: '13px',
         color: textColour.dim,
@@ -144,7 +159,8 @@ export class HudScene extends Phaser.Scene {
       .setVisible(false)
 
     this.buildSpeedButtons(midY)
-    this.buildRecruitButtons(recruitY)
+    this.buildRecruitButton(midY)
+    this.buildRecruitMenu()
     this.bindKeys()
     this.refresh()
   }
@@ -184,67 +200,133 @@ export class HudScene extends Phaser.Scene {
   }
 
   /**
-   * One button per cell type in content/cells.ts, so adding the neutrophil adds
-   * its button too. Clicking one only *starts* a recruit — the vessels then
-   * light up on the map and the energy goes when you pick one.
+   * One "+" button. The names and costs live in the menu it opens, where there
+   * is room for words, which is what keeps this bar down to a single line.
    */
-  private buildRecruitButtons(y: number): void {
+  private buildRecruitButton(y: number): void {
+    this.recruitButton = this.add
+      .rectangle(RECRUIT_BUTTON_X, y, 52, 26, palette.hudButton)
+      .setInteractive({ useHandCursor: true })
+
     this.add
-      .text(16, y, 'Recruit', {
+      .text(RECRUIT_BUTTON_X, y, '+', {
         fontFamily: font.family,
-        fontSize: '13px',
-        color: textColour.dim,
+        fontSize: '18px',
+        color: textColour.bright,
       })
-      .setOrigin(0, 0.5)
+      .setOrigin(0.5)
 
-    const width = 172
-    const gap = 8
-    let x = 78
+    this.recruitButton.on('pointerdown', () => this.toggleMenu())
 
-    for (const def of immuneCells) {
-      const box = this.add
-        .rectangle(x, y, width, 28, palette.hudButton)
-        .setOrigin(0, 0.5)
-        .setInteractive({ useHandCursor: true })
-
-      // A dot in the cell's own colour, so the button and the thing it makes
-      // are obviously the same thing.
-      const swatch = this.add.circle(x + 18, y, 7, immunePalette[def.id]?.fill ?? palette.energyBar)
-
-      const label = this.add
-        .text(x + 34, y, `${def.name}   ${def.cost}`, {
-          fontFamily: font.family,
-          fontSize: '13px',
-          color: textColour.bright,
-        })
-        .setOrigin(0, 0.5)
-
-      box.on('pointerdown', () => this.toggleRecruit(def.id))
-
-      this.recruitButtons.push({ defId: def.id, cost: def.cost, box, label, swatch })
-      x += width + gap
-    }
-
+    // Just above the bar, right-aligned to the button that raised it.
     this.recruitHint = this.add
-      .text(x + 8, y, '', {
+      .text(RECRUIT_BUTTON_X + 26, y - 26, '', {
         fontFamily: font.family,
         fontSize: '13px',
         color: textColour.vessel,
       })
-      .setOrigin(0, 0.5)
+      .setOrigin(1, 0.5)
   }
 
-  /** Clicking the button you are already recruiting with calls it off. */
-  private toggleRecruit(defId: string): void {
-    if (this.world.recruitingDefId === defId) this.world.cancelRecruit()
-    else this.world.beginRecruit(defId)
+  /**
+   * The floating menu: one row per cell type in content/cells.ts, so adding the
+   * neutrophil adds its row too. Picking a row only *starts* a recruit — the
+   * vessels then light up on the map, and the energy goes when you pick one.
+   */
+  private buildRecruitMenu(): void {
+    const rowHeight = 34
+    const width = 210
+    const padding = 8
+
+    const height = padding * 2 + immuneCells.length * rowHeight
+    const left = RECRUIT_BUTTON_X + 26 - width
+    const bottom = this.top - 10
+
+    this.recruitMenu = this.add.container(0, 0).setVisible(false)
+    this.menuBounds = new Phaser.Geom.Rectangle(left, bottom - height, width, height)
+
+    const panel = this.add
+      .rectangle(left, bottom - height, width, height, palette.hudPanel, 0.98)
+      .setOrigin(0, 0)
+      .setStrokeStyle(1, palette.hudButtonActive, 0.6)
+    this.recruitMenu.add(panel)
+
+    const icons = this.add.graphics()
+    this.recruitMenu.add(icons)
+
+    immuneCells.forEach((def, index) => {
+      const y = bottom - height + padding + rowHeight * index + rowHeight / 2
+
+      const row = this.add
+        .rectangle(left + padding, y, width - padding * 2, rowHeight - 4, palette.hudButton, 0)
+        .setOrigin(0, 0.5)
+        .setInteractive({ useHandCursor: true })
+
+      // The same picture as the HUD readout and the cell on the map.
+      drawMacrophageIcon(icons, left + padding + 20, y, 11)
+
+      const label = this.add
+        .text(left + padding + 42, y, def.name, {
+          fontFamily: font.family,
+          fontSize: '14px',
+          color: textColour.bright,
+        })
+        .setOrigin(0, 0.5)
+
+      const cost = this.add
+        .text(left + width - padding - 10, y, `${def.cost}`, {
+          fontFamily: font.family,
+          fontSize: '14px',
+          color: textColour.energy,
+        })
+        .setOrigin(1, 0.5)
+
+      row.on('pointerdown', () => {
+        this.world.beginRecruit(def.id)
+        this.setMenuOpen(false)
+      })
+
+      this.recruitMenu.add([row, label, cost])
+      this.recruitRows.push({ defId: def.id, cost: def.cost, row, label })
+    })
+  }
+
+  /** Opens the menu, or shuts it — and calls off any recruit you'd started. */
+  private toggleMenu(): void {
+    if (this.recruitMenu.visible) {
+      this.setMenuOpen(false)
+      return
+    }
+
+    this.world.cancelRecruit()
+    this.setMenuOpen(true)
+  }
+
+  /**
+   * The level scene needs to know, so that a click landing on the menu doesn't
+   * also order a macrophage about underneath it.
+   */
+  private setMenuOpen(open: boolean): void {
+    this.recruitMenu.setVisible(open)
+    this.registry.set('recruitMenuOpen', open)
   }
 
   private bindKeys(): void {
+    // Clicking anywhere that isn't the menu shuts it. The level scene ignores
+    // clicks while it is open, so this can't also move a macrophage.
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (!this.recruitMenu.visible) return
+      if (this.menuBounds.contains(pointer.x, pointer.y)) return
+      if (this.recruitButton.getBounds().contains(pointer.x, pointer.y)) return
+
+      this.setMenuOpen(false)
+    })
+
     const keyboard = this.input.keyboard
     if (!keyboard) return
 
     keyboard.on('keydown-SPACE', () => this.togglePause())
+    keyboard.on('keydown-ESC', () => this.setMenuOpen(false))
 
     balance.timeSpeeds.forEach((speed, index) => {
       keyboard.on(`keydown-${['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE'][index] ?? 'ZERO'}`, () =>
@@ -271,7 +353,8 @@ export class HudScene extends Phaser.Scene {
     const { economy } = this.world
     const speed = (this.registry.get('speed') as number) ?? 1
 
-    this.energyText.setText(`Energy  ${Math.floor(economy.energy)}`)
+    // The pictures say what each number is, so the numbers stand alone.
+    this.energyText.setText(`${Math.floor(economy.energy)}`)
 
     const living = this.world.livingBodyCellCount
     const total = this.world.bodyCells.length
@@ -284,11 +367,11 @@ export class HudScene extends Phaser.Scene {
     this.incomeText.setText(`${sign}${perSecond.toFixed(1)}/sec`)
     this.incomeText.setColor(perSecond < 0 ? textColour.lost : textColour.energy)
 
-    this.tissueText.setText(`Body cells  ${living}/${total}`)
-    this.immuneText.setText(this.immuneSummary())
+    this.tissueText.setText(`${living}/${total}`)
+    this.immuneText.setText(`${this.world.livingImmuneCellCount}`)
 
     const bacteria = this.world.livingPathogenCount
-    this.bacteriaText.setText(bacteria === 0 ? '' : `Bacteria  ${bacteria}`)
+    this.bacteriaText.setText(bacteria === 0 ? '—' : `${bacteria}`)
 
     this.clockText.setText(
       speed === 0 ? 'PAUSED' : `${formatClock(this.world.elapsedSeconds)}   ${speed}x`,
@@ -321,24 +404,27 @@ export class HudScene extends Phaser.Scene {
   }
 
   /**
-   * A button you can't afford says so by going dim, rather than by doing
-   * nothing when you press it.
+   * A row you can't afford says so by going dim, rather than by doing nothing
+   * when you press it.
    */
   private refreshRecruitButtons(): void {
     const recruiting = this.world.recruitingDefId
 
-    for (const button of this.recruitButtons) {
-      const affordable = this.world.economy.canAfford(button.cost)
-      const active = recruiting === button.defId
-
-      button.box.setFillStyle(active ? palette.hudButtonActive : palette.hudButton)
-      button.box.setAlpha(affordable || active ? 1 : 0.4)
-      button.label.setAlpha(affordable || active ? 1 : 0.45)
-      button.swatch.setAlpha(affordable || active ? 1 : 0.45)
+    for (const entry of this.recruitRows) {
+      const affordable = this.world.economy.canAfford(entry.cost)
+      entry.row.setFillStyle(palette.hudButton, affordable ? 0.55 : 0.2)
+      entry.label.setAlpha(affordable ? 1 : 0.45)
     }
+
+    // The + lights up while a recruit is waiting for a vessel, so it is obvious
+    // the game is asking you for something.
+    this.recruitButton.setFillStyle(
+      recruiting || this.recruitMenu.visible ? palette.hudButtonActive : palette.hudButton,
+    )
 
     const def = recruiting ? findImmuneCell(recruiting) : undefined
     this.recruitHint.setText(def ? `click a vessel to send the ${def.name.toLowerCase()} in` : '')
+    this.recruitHint.setVisible(def !== undefined)
   }
 
   /**
@@ -358,18 +444,6 @@ export class HudScene extends Phaser.Scene {
     this.starvingWarning.setAlpha(0.55 + 0.45 * Math.sin(time / 140))
   }
 
-  /** "Macrophages  2", and one entry per type once there are more of them. */
-  private immuneSummary(): string {
-    const parts: string[] = []
-
-    for (const [defId, count] of this.world.immuneCellCounts) {
-      const def = findImmuneCell(defId)
-      parts.push(`${def ? def.name : defId}s  ${count}`)
-    }
-
-    return parts.join('   ')
-  }
-
   private get upkeepPerSecond(): number {
     let total = 0
 
@@ -382,9 +456,9 @@ export class HudScene extends Phaser.Scene {
   }
 
   private drawEnergyBar(energy: number): void {
-    const x = 150
+    const x = 96
     const y = this.readoutY - 4
-    const width = 132
+    const width = 120
     const height = 8
 
     const fraction = Phaser.Math.Clamp(energy / balance.energyBarDisplayMax, 0, 1)

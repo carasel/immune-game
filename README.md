@@ -39,7 +39,9 @@ src/
     rng.ts       seeded randomness, so a level always builds the same
   render/      Phaser. Draws what the simulation reports.
     LevelScene.ts  the tissue, the bacteria and the immune cells
-    HudScene.ts    energy, cell counts, clock, speed controls
+    HudScene.ts    energy, cell counts, clock, speed and recruit controls
+    shapes.ts      the cell outlines, shared by the map and the HUD
+    icons.ts       little pictures of a cell, a macrophage and a bacterium
     palette.ts     colours
 ```
 
@@ -55,8 +57,9 @@ Two rules keep this tidy as it grows:
 - **Click a macrophage** to pick it up — it gets a ring round it
 - **Click the ground** to send it there. It walks there ignoring everything, then goes back
   to hunting on its own
-- **Recruit a macrophage** from the bottom bar, then **click a vessel** — it arrives there and
-  has to walk to the fight itself. The energy is only spent once you've picked the vessel
+- **+** in the bottom bar opens the recruit menu. Pick a cell, then **click a vessel** — it
+  arrives there and has to walk to the fight itself. The energy is only spent once you've
+  picked the vessel
 - **Escape** — put the cell down, or call off the recruit
 - **Space** — pause / unpause
 - **1 2 3 4** — pause, 0.5x, 1x, 3x

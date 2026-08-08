@@ -1,6 +1,6 @@
 import Phaser from 'phaser'
 import { balance } from '../content/balance'
-import { findImmuneCell, type ImmuneCellDef } from '../content/cells'
+import { findImmuneCell } from '../content/cells'
 import { theCut, TISSUE_VIEW } from '../content/levels'
 import { findPathogen } from '../content/pathogens'
 import type { Vec2 } from '../sim/geometry'
@@ -10,6 +10,7 @@ import type { BodyCell } from '../sim/tissue'
 import { TICKS_PER_SECOND, World } from '../sim/world'
 import { HudScene } from './HudScene'
 import { font, immunePalette, palette, pathogenPalette, textColour } from './palette'
+import { insidePear, pearOutline } from './shapes'
 
 const MS_PER_TICK = 1000 / TICKS_PER_SECOND
 
@@ -137,6 +138,11 @@ export class LevelScene extends Phaser.Scene {
       // The HUD is a separate scene drawn over the bottom strip, so clicks down
       // there belong to it and never to the tissue.
       if (pointer.worldY >= TISSUE_VIEW.height) return
+
+      // The recruit menu floats over the tissue. While it is open a click is
+      // the menu's business — picking a row or dismissing it — and must not
+      // also send a macrophage somewhere underneath it.
+      if (this.registry.get('recruitMenuOpen')) return
 
       // Placing a recruit takes over the click entirely: hit a vessel and it
       // arrives there, miss and the recruit is called off. No half states.
@@ -325,7 +331,7 @@ export class LevelScene extends Phaser.Scene {
       const digested = cell.meal ? 1 - cell.meal.secondsLeft / cell.meal.totalSeconds : 1
       const swell = (1 + 0.14 * (1 - digested)) * (0.7 + 0.3 * fade)
 
-      const outline = buildPearOutline(cell, def, swell)
+      const outline = pearOutline(cell.x, cell.y, cell.angle, def, swell)
 
       // A ring on the ground under the one you have picked up.
       if (cell === selected) {
@@ -340,13 +346,13 @@ export class LevelScene extends Phaser.Scene {
       graphics.strokePoints(outline, true)
 
       // The nucleus sits forward of centre, out of the way of the belly.
-      const nucleus = insideCell(cell, def, -0.22)
+      const nucleus = insidePear(cell.x, cell.y, cell.angle, def, -0.22)
       graphics.fillStyle(colour.nucleus, 0.5 * fade)
       graphics.fillCircle(nucleus.x, nucleus.y, def.radius * 0.28)
 
       if (!cell.meal) continue
 
-      const meal = insideCell(cell, def, 0.36)
+      const meal = insidePear(cell.x, cell.y, cell.angle, def, 0.36)
       const size = def.radius * 0.44 * (1 - digested)
       if (size < 1) continue
 
@@ -370,45 +376,6 @@ function mealColour(pathogenDefId: string | undefined): number {
   return colour ? pathogenPalette[colour].fill : palette.debrisEdge
 }
 
-/**
- * The cell's outline: a circle with its bulk pushed to the back and its front
- * pinched in, built around the direction the cell is facing so the narrow end
- * always leads. Egg-shaped more than pear-shaped, which is what we wanted.
- *
- * `nose` pinches the front in and `belly` fattens the back out, both as
- * fractions of the radius, so nose 0 and belly 0 draws a plain circle.
- *
- * `swell` puffs the whole cell up while it has something inside it.
- */
-function buildPearOutline(cell: ImmuneCell, def: ImmuneCellDef, swell: number): Vec2[] {
-  const segments = 22
-  const points: Vec2[] = []
-
-  for (let i = 0; i < segments; i++) {
-    const around = (i / segments) * Math.PI * 2
-    const reach =
-      def.radius * swell * (1 - def.nose * Math.cos(around) + def.belly * Math.cos(around * 2))
-    const angle = cell.angle + around
-
-    points.push({
-      x: cell.x + Math.cos(angle) * reach,
-      y: cell.y + Math.sin(angle) * reach,
-    })
-  }
-
-  return points
-}
-
-/**
- * A point inside a cell, `back` fractions of its radius behind the centre.
- * Negative for a point towards the nose.
- */
-function insideCell(cell: ImmuneCell, def: ImmuneCellDef, back: number): Vec2 {
-  return {
-    x: cell.x - Math.cos(cell.angle) * def.radius * back,
-    y: cell.y - Math.sin(cell.angle) * def.radius * back,
-  }
-}
 
 /** Blend two 0xRRGGBB colours. `amount` 0 gives `from`, 1 gives `to`. */
 function mixColour(from: number, to: number, amount: number): number {
