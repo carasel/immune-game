@@ -1,13 +1,21 @@
 import Phaser from 'phaser'
 import { balance } from '../content/balance'
-import { findImmuneCell } from '../content/cells'
+import { findImmuneCell, immuneCells } from '../content/cells'
 import { HUD_HEIGHT, WORLD } from '../content/levels'
 import type { World } from '../sim/world'
-import { font, palette, textColour } from './palette'
+import { font, immunePalette, palette, textColour } from './palette'
 
 interface SpeedButton {
   speed: number
   box: Phaser.GameObjects.Rectangle
+}
+
+interface RecruitButton {
+  defId: string
+  cost: number
+  box: Phaser.GameObjects.Rectangle
+  label: Phaser.GameObjects.Text
+  swatch: Phaser.GameObjects.Arc
 }
 
 /**
@@ -28,9 +36,15 @@ export class HudScene extends Phaser.Scene {
   private lostBanner!: Phaser.GameObjects.Text
   private lostSubtitle!: Phaser.GameObjects.Text
 
+  private recruitHint!: Phaser.GameObjects.Text
+
   private speedButtons: SpeedButton[] = []
+  private recruitButtons: RecruitButton[] = []
 
   private readonly top = WORLD.height - HUD_HEIGHT
+  /** Two rows: readouts along the top, recruiting underneath. */
+  private readonly readoutY = WORLD.height - HUD_HEIGHT + 22
+  private readonly recruitY = WORLD.height - HUD_HEIGHT + 58
 
   constructor() {
     super('hud')
@@ -43,7 +57,8 @@ export class HudScene extends Phaser.Scene {
       .rectangle(0, this.top, WORLD.width, HUD_HEIGHT, palette.hudPanel, 0.96)
       .setOrigin(0, 0)
 
-    const midY = this.top + HUD_HEIGHT / 2
+    const midY = this.readoutY
+    const recruitY = this.recruitY
 
     this.energyText = this.add
       .text(16, midY, '', {
@@ -129,6 +144,7 @@ export class HudScene extends Phaser.Scene {
       .setVisible(false)
 
     this.buildSpeedButtons(midY)
+    this.buildRecruitButtons(recruitY)
     this.bindKeys()
     this.refresh()
   }
@@ -165,6 +181,63 @@ export class HudScene extends Phaser.Scene {
       this.speedButtons.push({ speed, box })
       x += width + gap
     }
+  }
+
+  /**
+   * One button per cell type in content/cells.ts, so adding the neutrophil adds
+   * its button too. Clicking one only *starts* a recruit — the vessels then
+   * light up on the map and the energy goes when you pick one.
+   */
+  private buildRecruitButtons(y: number): void {
+    this.add
+      .text(16, y, 'Recruit', {
+        fontFamily: font.family,
+        fontSize: '13px',
+        color: textColour.dim,
+      })
+      .setOrigin(0, 0.5)
+
+    const width = 172
+    const gap = 8
+    let x = 78
+
+    for (const def of immuneCells) {
+      const box = this.add
+        .rectangle(x, y, width, 28, palette.hudButton)
+        .setOrigin(0, 0.5)
+        .setInteractive({ useHandCursor: true })
+
+      // A dot in the cell's own colour, so the button and the thing it makes
+      // are obviously the same thing.
+      const swatch = this.add.circle(x + 18, y, 7, immunePalette[def.id]?.fill ?? palette.energyBar)
+
+      const label = this.add
+        .text(x + 34, y, `${def.name}   ${def.cost}`, {
+          fontFamily: font.family,
+          fontSize: '13px',
+          color: textColour.bright,
+        })
+        .setOrigin(0, 0.5)
+
+      box.on('pointerdown', () => this.toggleRecruit(def.id))
+
+      this.recruitButtons.push({ defId: def.id, cost: def.cost, box, label, swatch })
+      x += width + gap
+    }
+
+    this.recruitHint = this.add
+      .text(x + 8, y, '', {
+        fontFamily: font.family,
+        fontSize: '13px',
+        color: textColour.vessel,
+      })
+      .setOrigin(0, 0.5)
+  }
+
+  /** Clicking the button you are already recruiting with calls it off. */
+  private toggleRecruit(defId: string): void {
+    if (this.world.recruitingDefId === defId) this.world.cancelRecruit()
+    else this.world.beginRecruit(defId)
   }
 
   private bindKeys(): void {
@@ -243,6 +316,29 @@ export class HudScene extends Phaser.Scene {
       const active = button.speed === speed
       button.box.setFillStyle(active ? palette.hudButtonActive : palette.hudButton)
     }
+
+    this.refreshRecruitButtons()
+  }
+
+  /**
+   * A button you can't afford says so by going dim, rather than by doing
+   * nothing when you press it.
+   */
+  private refreshRecruitButtons(): void {
+    const recruiting = this.world.recruitingDefId
+
+    for (const button of this.recruitButtons) {
+      const affordable = this.world.economy.canAfford(button.cost)
+      const active = recruiting === button.defId
+
+      button.box.setFillStyle(active ? palette.hudButtonActive : palette.hudButton)
+      button.box.setAlpha(affordable || active ? 1 : 0.4)
+      button.label.setAlpha(affordable || active ? 1 : 0.45)
+      button.swatch.setAlpha(affordable || active ? 1 : 0.45)
+    }
+
+    const def = recruiting ? findImmuneCell(recruiting) : undefined
+    this.recruitHint.setText(def ? `click a vessel to send the ${def.name.toLowerCase()} in` : '')
   }
 
   /**
@@ -287,7 +383,7 @@ export class HudScene extends Phaser.Scene {
 
   private drawEnergyBar(energy: number): void {
     const x = 150
-    const y = this.top + HUD_HEIGHT / 2 - 4
+    const y = this.readoutY - 4
     const width = 132
     const height = 8
 

@@ -440,6 +440,16 @@ campaign → eosinophils → threadworm and hookworm levels.
   never finish during a fight.
 - **One cell selected at a time**, for now. Box selection can come when there are enough cells
   on screen to need it.
+- **Recruiting is two clicks: pick the cell, then pick the vessel.** The energy is spent on
+  the second one, so changing your mind costs nothing, and you have to look at the map before
+  you can reinforce. Every vessel lights up while you choose.
+- A recruit **is not given an order** when it arrives — it hunts and wanders like any other
+  cell. Walking it in automatically would mean walking it past bacteria, because a move order
+  ignores everything.
+- **Vessel width does nothing yet.** Recruits arrive at once rather than queueing. Making a
+  narrow vessel a real bottleneck is worth doing once we know the fights need it.
+- The HUD is **two rows** now — readouts on top, recruiting underneath — which cost the play
+  area 36px of height.
 - **Starving has to be seen to happen.** A cell dying at zero energy withers away over a
   second instead of vanishing, and the HUD blinks a warning with a countdown to the next one
   while it is happening. Playtested as a bug — a macrophage disappearing with no explanation

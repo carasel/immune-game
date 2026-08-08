@@ -55,7 +55,9 @@ Two rules keep this tidy as it grows:
 - **Click a macrophage** to pick it up — it gets a ring round it
 - **Click the ground** to send it there. It walks there ignoring everything, then goes back
   to hunting on its own
-- **Escape** — put it down again
+- **Recruit a macrophage** from the bottom bar, then **click a vessel** — it arrives there and
+  has to walk to the fight itself. The energy is only spent once you've picked the vessel
+- **Escape** — put the cell down, or call off the recruit
 - **Space** — pause / unpause
 - **1 2 3 4** — pause, 0.5x, 1x, 3x
 - Or click the buttons in the bottom right
@@ -84,6 +86,8 @@ Day 2 has started. The macrophage is in:
 - [x] Click a macrophage to select it, click the ground to send it there
 - [x] Starving cells wither away visibly, with a warning and a countdown, rather
       than disappearing without explanation
+- [x] Recruiting: pay energy, pick a vessel, the cell walks in from there
 - [ ] Click a bacterium to send a cell after that one specifically
 - [ ] Neutrophils
-- [ ] The recruit panel
+- [ ] Waves, reproduction and mutation
+- [ ] Narrow vessels as bottlenecks — recruits queue instead of arriving at once

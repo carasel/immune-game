@@ -56,6 +56,12 @@ export class World {
   private lostTo: LossReason | null = null
   /** Which immune cell the player has clicked on, if any. */
   private selectedId: number | null = null
+  /**
+   * The cell type the player has asked for but not yet placed. Recruiting is
+   * two steps — pick the cell, then pick the vessel it walks in through — and
+   * the energy is not spent until the second one.
+   */
+  private pendingRecruit: string | null = null
   private readonly rng: Rng
   private nextPathogenId = 1
   private nextImmuneCellId = 1
@@ -310,6 +316,77 @@ export class World {
     return true
   }
 
+  /** The cell type waiting to be placed at a vessel, or null. */
+  get recruitingDefId(): string | null {
+    return this.pendingRecruit
+  }
+
+  /**
+   * Step one of recruiting: pick what you want. Nothing is charged yet — the
+   * energy goes when you pick the vessel, so changing your mind is free.
+   *
+   * Returns false if you can't afford it, which is also why the check is here
+   * and not only on the button.
+   */
+  beginRecruit(defId: string): boolean {
+    const def = findImmuneCell(defId)
+    if (!def || !this.economy.canAfford(def.cost)) return false
+
+    this.pendingRecruit = defId
+    return true
+  }
+
+  cancelRecruit(): void {
+    this.pendingRecruit = null
+  }
+
+  /**
+   * Step two: the vessel it walks in through. This is where the energy goes.
+   *
+   * Recruits are not placed where you want them — they arrive at the mouth of a
+   * blood vessel and walk to the fight themselves, which is what extravasation
+   * really is and what makes a far-off corner expensive to defend.
+   *
+   * Returns the new cell, or null if the recruit fell through (nothing pending,
+   * unknown vessel, or the energy went while you were deciding).
+   */
+  recruitAt(openingId: string): ImmuneCell | null {
+    if (!this.pendingRecruit) return null
+
+    const def = findImmuneCell(this.pendingRecruit)
+    const opening = this.openings.find((candidate) => candidate.id === openingId)
+    if (!def || !opening) return null
+
+    if (!this.economy.spend(def.cost)) {
+      // Went broke between choosing the cell and choosing the vessel.
+      this.pendingRecruit = null
+      return null
+    }
+
+    this.pendingRecruit = null
+
+    // Spread across the mouth, so several recruits don't land in a stack.
+    const acrossX = -opening.inward.y
+    const acrossY = opening.inward.x
+    const offset = randomRange(this.rng, -opening.width * 0.3, opening.width * 0.3)
+
+    return this.createImmuneCell(
+      def,
+      opening.innerPoint.x + acrossX * offset,
+      opening.innerPoint.y + acrossY * offset,
+      Math.atan2(opening.inward.y, opening.inward.x),
+    )
+  }
+
+  /** The vessel under a point, if there is one. Used for placing a recruit. */
+  openingAt(x: number, y: number): EdgeRegion | null {
+    for (const opening of this.openings) {
+      if (rectContains(opening.corridor, x, y)) return opening
+    }
+
+    return null
+  }
+
   /**
    * The immune cells already on duty when the level starts. Cells you recruit
    * later arrive at a vessel opening instead and have to walk in.
@@ -347,19 +424,33 @@ export class World {
       if (this.isRoomForImmuneCell(def, x, y)) break
     }
 
-    this.immuneCells.push({
+    this.createImmuneCell(def, x, y, this.rng() * Math.PI * 2)
+  }
+
+  /** Makes a cell and puts it in the world. Everything else goes through here. */
+  private createImmuneCell(
+    def: ImmuneCellDef,
+    x: number,
+    y: number,
+    angle: number,
+  ): ImmuneCell {
+    const cell: ImmuneCell = {
       id: this.nextImmuneCellId++,
       defId: def.id,
-      x,
-      y,
-      angle: this.rng() * Math.PI * 2,
+      // Never outside the world, however it got placed.
+      x: clamp(x, def.radius, this.bounds.width - def.radius),
+      y: clamp(y, def.radius, this.bounds.height - def.radius),
+      angle,
       alive: true,
       ageSeconds: 0,
       wanderIn: randomRange(this.rng, 0, def.wanderChangeSeconds),
       meal: null,
       order: null,
       diedAtSeconds: null,
-    })
+    }
+
+    this.immuneCells.push(cell)
+    return cell
   }
 
   /** Clear of tissue, clear of other immune cells, and not sitting in a wound. */

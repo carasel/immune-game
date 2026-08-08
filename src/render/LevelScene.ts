@@ -24,6 +24,7 @@ export class LevelScene extends Phaser.Scene {
   private tissueGraphics!: Phaser.GameObjects.Graphics
   private pathogenGraphics!: Phaser.GameObjects.Graphics
   private immuneGraphics!: Phaser.GameObjects.Graphics
+  private highlightGraphics!: Phaser.GameObjects.Graphics
 
   /**
    * Each body cell's outline, worked out once. Body cells never move, so there
@@ -57,6 +58,9 @@ export class LevelScene extends Phaser.Scene {
     // Above the bacteria, so a swallowed one is drawn inside its macrophage.
     this.immuneGraphics = this.add.graphics()
 
+    // Top of the pile: the vessels lighting up while you place a recruit.
+    this.highlightGraphics = this.add.graphics()
+
     // After both, so nothing covers the labels up.
     this.drawLabels()
 
@@ -69,7 +73,7 @@ export class LevelScene extends Phaser.Scene {
     }
   }
 
-  update(_time: number, deltaMs: number): void {
+  update(time: number, deltaMs: number): void {
     const speed = (this.registry.get('speed') as number) ?? 1
 
     // Clamp the frame so that alt-tabbing away doesn't dump a huge backlog of
@@ -92,11 +96,38 @@ export class LevelScene extends Phaser.Scene {
     this.drawTissue()
     this.drawPathogens()
     this.drawImmuneCells()
+    this.drawRecruitHighlights(time)
+  }
+
+  /**
+   * While a recruit is waiting to be placed, every vessel pulses to say "pick
+   * one of these". They are the only places a recruit can arrive, and a 9-year
+   * -old shouldn't have to be told that twice.
+   */
+  private drawRecruitHighlights(time: number): void {
+    const graphics = this.highlightGraphics
+    graphics.clear()
+
+    if (!this.world.recruitingDefId) return
+
+    const pulse = 0.5 + 0.5 * Math.sin(time / 190)
+
+    for (const opening of this.world.openings) {
+      const { corridor } = opening
+      const corners = innerCorners(opening)
+
+      graphics.fillStyle(palette.vesselLip, 0.1 + 0.14 * pulse)
+      graphics.fillRoundedRect(corridor.x, corridor.y, corridor.width, corridor.height, corners)
+
+      graphics.lineStyle(3, palette.vesselLip, 0.55 + 0.45 * pulse)
+      graphics.strokeRoundedRect(corridor.x, corridor.y, corridor.width, corridor.height, corners)
+    }
   }
 
   /**
    * Click a macrophage to pick it up, then click the ground to send it there.
-   * Escape puts it down again.
+   * While a recruit is waiting to be placed, clicks pick the vessel it arrives
+   * at instead. Escape backs out of either.
    *
    * All this scene does is turn a click into a position and hand it to the
    * simulation. What a click *means* is a game rule, so it lives in world.ts.
@@ -107,12 +138,24 @@ export class LevelScene extends Phaser.Scene {
       // there belong to it and never to the tissue.
       if (pointer.worldY >= TISSUE_VIEW.height) return
 
+      // Placing a recruit takes over the click entirely: hit a vessel and it
+      // arrives there, miss and the recruit is called off. No half states.
+      if (this.world.recruitingDefId) {
+        const opening = this.world.openingAt(pointer.worldX, pointer.worldY)
+        if (opening) this.world.recruitAt(opening.id)
+        else this.world.cancelRecruit()
+        return
+      }
+
       if (this.world.selectImmuneCellAt(pointer.worldX, pointer.worldY)) return
 
       this.world.orderSelectedTo(pointer.worldX, pointer.worldY)
     })
 
-    this.input.keyboard?.on('keydown-ESC', () => this.world.clearSelection())
+    this.input.keyboard?.on('keydown-ESC', () => {
+      if (this.world.recruitingDefId) this.world.cancelRecruit()
+      else this.world.clearSelection()
+    })
   }
 
   /** Vessels and wounds. Drawn once, underneath the tissue. */
