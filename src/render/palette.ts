@@ -23,6 +23,9 @@ export const palette = {
   entry: 0x2ec4b6,
   entryLip: 0x6ef2e6,
 
+  /** The ring round the cell you have picked up, and where you sent it. */
+  selection: 0xeef1fb,
+
   // HUD
   hudPanel: 0x141c36,
   hudButton: 0x27325c,

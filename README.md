@@ -52,6 +52,10 @@ Two rules keep this tidy as it grows:
 
 ## Controls
 
+- **Click a macrophage** to pick it up — it gets a ring round it
+- **Click the ground** to send it there. It walks there ignoring everything, then goes back
+  to hunting on its own
+- **Escape** — put it down again
 - **Space** — pause / unpause
 - **1 2 3 4** — pause, 0.5x, 1x, 3x
 - Or click the buttons in the bottom right
@@ -75,8 +79,11 @@ Day 2 has started. The macrophage is in:
       it for two seconds, clear away the outlines dead body cells leave behind,
       and pay you for both
 - [x] Squeezing through tissue at 40% speed, so the channels are worth using
-- [x] Upkeep per cell, and starvation at zero energy — you now lose only when
-      the energy is gone *and* the last cell has starved
+- [x] Upkeep per cell, and starvation at zero energy — you lose when the energy
+      is gone *and* the last cell has starved, or when every body cell is dead
+- [x] Click a macrophage to select it, click the ground to send it there
+- [x] Starving cells wither away visibly, with a warning and a countdown, rather
+      than disappearing without explanation
+- [ ] Click a bacterium to send a cell after that one specifically
 - [ ] Neutrophils
-- [ ] Click to select, click to command
 - [ ] The recruit panel

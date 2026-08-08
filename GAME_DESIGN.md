@@ -155,9 +155,14 @@ Every immune cell is autonomous by default:
 ### How the player intervenes
 
 - **Click a cell** to select it.
-- **Click empty ground** → move there, then **resume wandering** (and auto-attack anything
-  that comes into vision on the way or after arriving).
+- **Click empty ground** → walk there, **ignoring everything on the way**, then **resume
+  wandering** and hunting normally the moment it arrives.
 - **Click a pathogen** → chase and attack *that specific target*, ignoring closer ones.
+
+A move order ignoring bacteria is what makes it an order rather than a suggestion. If a cell
+broke off for anything it passed, a move order would almost never finish while a fight was
+on — which is exactly when you need to reposition. Chasing one specific pathogen is the other
+order, for when what you want is "kill *that* one".
 
 So a player order is a temporary override, not a permanent mode. Cells always drift back to
 doing their own thing.
@@ -407,7 +412,7 @@ campaign → eosinophils → threadworm and hookworm levels.
 - Mast cell deferred until it fits naturally.
 - Simulation is separate from Phaser; fixed timestep; all content in data files.
 
-*2026-08-07*
+*2026-08-08*
 
 - Macrophages are **large and yellow**, always pointing their narrow end where they are
   going. That is what a crawling white blood cell really looks like: it reaches forward with
@@ -430,5 +435,14 @@ campaign → eosinophils → threadworm and hookworm levels.
   seconds until then.
 - **Losing every body cell is also a loss**, and an immediate one. Otherwise macrophages farm
   the bacteria on dead tissue forever and the level never ends.
+- **A move order is absolute.** An ordered cell ignores bacteria and debris until it arrives,
+  then forgets the order and hunts on its own again. Anything else and a move order would
+  never finish during a fight.
+- **One cell selected at a time**, for now. Box selection can come when there are enough cells
+  on screen to need it.
+- **Starving has to be seen to happen.** A cell dying at zero energy withers away over a
+  second instead of vanishing, and the HUD blinks a warning with a countdown to the next one
+  while it is happening. Playtested as a bug — a macrophage disappearing with no explanation
+  reads as the game taking one off you, not as the price of going broke.
 - Immune cells **do** block each other (`immuneCellsBlockEachOther` in balance.ts, so it
   really was a one-line change).

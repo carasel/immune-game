@@ -1,7 +1,7 @@
 import { balance } from '../content/balance'
 import { findImmuneCell, type ImmuneCellDef } from '../content/cells'
 import { findPathogen } from '../content/pathogens'
-import { clamp, distance, type Size } from './geometry'
+import { clamp, distance, type Size, type Vec2 } from './geometry'
 import type { Pathogen } from './pathogens'
 import type { Rng } from './rng'
 import type { BodyCell } from './tissue'
@@ -18,6 +18,9 @@ const PATHOGEN_REACH = 0.8
  * than the macrophage — it has to crawl on top of the husk to clear it.
  */
 const DEBRIS_REACH = 0.5
+
+/** How close a cell has to get to where it was sent before it counts as arrived. */
+const ARRIVED_WITHIN = 2
 
 /** What an immune cell is currently busy swallowing. */
 export interface Meal {
@@ -46,11 +49,25 @@ export interface ImmuneCell {
   wanderIn: number
   /** Set while it is eating. It stops moving and hunting until it's done. */
   meal: Meal | null
+  /**
+   * Where the player has sent it. It walks there ignoring everything, then
+   * forgets the order and goes back to hunting on its own. Null when it is
+   * doing its own thing, which is most of the time.
+   */
+  order: Vec2 | null
+  /**
+   * When it died, in level seconds, or null while it is alive. Dead cells stay
+   * in the list so the player can see them go — a cell that vanishes between
+   * one frame and the next just looks like a bug.
+   */
+  diedAtSeconds: number | null
 }
 
 export interface ImmuneCellContext {
   /** Seconds this tick. */
   dt: number
+  /** How long the level has been running, for recording when a cell died. */
+  elapsedSeconds: number
   bodyCells: BodyCell[]
   pathogens: Pathogen[]
   bounds: Size
@@ -69,6 +86,9 @@ export interface ImmuneCellContext {
  * Swallowing takes time, and while it is swallowing the cell does nothing else.
  * That is the whole balance of the macrophage: one of them is a good earner, but
  * a swarm walks straight past one that is busy.
+ *
+ * A player order sits above all of that but only until it is carried out, which
+ * is what GAME_DESIGN.md §4 means by a temporary override.
  */
 export function updateImmuneCell(
   cell: ImmuneCell,
@@ -80,7 +100,7 @@ export function updateImmuneCell(
   // Old age. Macrophages live for months, so they have no lifespan at all and
   // this never fires for them; neutrophils will die here all the time.
   if (def.lifespanSeconds !== undefined && cell.ageSeconds >= def.lifespanSeconds) {
-    cell.alive = false
+    killImmuneCell(cell, ctx.elapsedSeconds)
     return
   }
 
@@ -93,6 +113,21 @@ export function updateImmuneCell(
     cell.meal = null
     ctx.onMealFinished(cell, meal)
     return
+  }
+
+  // Told to go somewhere: it goes, and nothing distracts it on the way. Once it
+  // arrives the order is forgotten and it picks up hunting again immediately —
+  // this same tick, since the code below runs on.
+  if (cell.order) {
+    if (distance(cell.x, cell.y, cell.order.x, cell.order.y) > ARRIVED_WITHIN) {
+      cell.angle = Math.atan2(cell.order.y - cell.y, cell.order.x - cell.x)
+      crawl(cell, def, ctx)
+      return
+    }
+
+    cell.order = null
+    // Wander off in a fresh direction rather than continuing the way it came.
+    cell.wanderIn = def.wanderChangeSeconds
   }
 
   const prey = nearestPathogenInRange(cell, def.visionRange, ctx.pathogens)
@@ -149,6 +184,18 @@ export function updateImmuneCell(
   }
 
   crawl(cell, def, ctx)
+}
+
+/**
+ * Kills a cell, remembering when so it can be drawn fading away rather than
+ * blinking out of existence. Everything that kills an immune cell goes through
+ * here — old age here, starvation over in world.ts.
+ */
+export function killImmuneCell(cell: ImmuneCell, elapsedSeconds: number): void {
+  cell.alive = false
+  cell.diedAtSeconds = elapsedSeconds
+  cell.order = null
+  cell.meal = null
 }
 
 /**

@@ -3,8 +3,9 @@ import { findImmuneCell, type ImmuneCellDef } from '../content/cells'
 import type { LevelDef, WaveDef } from '../content/levels'
 import { findPathogen, type PathogenDef } from '../content/pathogens'
 import { Economy } from './economy'
-import { rectContains, type Size } from './geometry'
+import { clamp, distance, rectContains, type Size } from './geometry'
 import {
+  killImmuneCell,
   separateImmuneCells,
   updateImmuneCell,
   type ImmuneCell,
@@ -53,6 +54,8 @@ export class World {
   lostAtSeconds = 0
 
   private lostTo: LossReason | null = null
+  /** Which immune cell the player has clicked on, if any. */
+  private selectedId: number | null = null
   private readonly rng: Rng
   private nextPathogenId = 1
   private nextImmuneCellId = 1
@@ -243,6 +246,71 @@ export class World {
   }
 
   /**
+   * The cell the player has selected, or null. A cell that dies while selected
+   * stops being selected, which is why this is looked up rather than held.
+   */
+  get selectedImmuneCell(): ImmuneCell | null {
+    if (this.selectedId === null) return null
+
+    const cell = this.immuneCells.find((candidate) => candidate.id === this.selectedId)
+    return cell && cell.alive ? cell : null
+  }
+
+  /**
+   * Selects the immune cell under a point and returns it, or returns null and
+   * changes nothing if the click missed every cell. The caller can treat null
+   * as "they clicked the ground".
+   */
+  selectImmuneCellAt(x: number, y: number): ImmuneCell | null {
+    let best: ImmuneCell | null = null
+    let bestDistance = Number.POSITIVE_INFINITY
+
+    for (const cell of this.immuneCells) {
+      if (!cell.alive) continue
+
+      const def = findImmuneCell(cell.defId)
+      if (!def) continue
+
+      // Overlapping cells: the one whose middle is nearest wins.
+      const away = distance(cell.x, cell.y, x, y)
+      if (away > def.radius || away >= bestDistance) continue
+
+      best = cell
+      bestDistance = away
+    }
+
+    if (best) this.selectedId = best.id
+    return best
+  }
+
+  clearSelection(): void {
+    this.selectedId = null
+  }
+
+  /**
+   * Sends the selected cell to a point. It walks there ignoring bacteria and
+   * debris on the way, then goes back to hunting on its own.
+   *
+   * Returns false if nothing is selected, so a click on empty ground with no
+   * cell picked up does nothing at all.
+   */
+  orderSelectedTo(x: number, y: number): boolean {
+    const cell = this.selectedImmuneCell
+    if (!cell) return false
+
+    const def = findImmuneCell(cell.defId)
+    if (!def) return false
+
+    // Keep the destination somewhere the cell can actually stand.
+    cell.order = {
+      x: clamp(x, def.radius, this.bounds.width - def.radius),
+      y: clamp(y, def.radius, this.bounds.height - def.radius),
+    }
+
+    return true
+  }
+
+  /**
    * The immune cells already on duty when the level starts. Cells you recruit
    * later arrive at a vessel opening instead and have to walk in.
    */
@@ -289,6 +357,8 @@ export class World {
       ageSeconds: 0,
       wanderIn: randomRange(this.rng, 0, def.wanderChangeSeconds),
       meal: null,
+      order: null,
+      diedAtSeconds: null,
     })
   }
 
@@ -316,6 +386,7 @@ export class World {
   private updateImmuneCells(): void {
     const context: ImmuneCellContext = {
       dt: SECONDS_PER_TICK,
+      elapsedSeconds: this.elapsedSeconds,
       bodyCells: this.bodyCells,
       pathogens: this.pathogens,
       bounds: this.bounds,
@@ -362,7 +433,21 @@ export class World {
       if (!oldest || cell.ageSeconds > oldest.ageSeconds) oldest = cell
     }
 
-    if (oldest) oldest.alive = false
+    if (oldest) killImmuneCell(oldest, this.elapsedSeconds)
+  }
+
+  /**
+   * True while the energy is gone and there are still cells to lose. The HUD
+   * shouts about this: a cell starving to death with no warning reads as the
+   * game losing one of your macrophages, not as a consequence of going broke.
+   */
+  get isStarving(): boolean {
+    return this.economy.isEmpty && this.livingImmuneCellCount > 0
+  }
+
+  /** Seconds until the next cell starves, while `isStarving`. */
+  get secondsToNextStarvation(): number {
+    return Math.max(0, this.starveIn)
   }
 
   private updatePathogens(): void {

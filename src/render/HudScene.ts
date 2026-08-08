@@ -24,6 +24,7 @@ export class HudScene extends Phaser.Scene {
   private bacteriaText!: Phaser.GameObjects.Text
   private clockText!: Phaser.GameObjects.Text
   private energyBar!: Phaser.GameObjects.Graphics
+  private starvingWarning!: Phaser.GameObjects.Text
   private lostBanner!: Phaser.GameObjects.Text
   private lostSubtitle!: Phaser.GameObjects.Text
 
@@ -97,6 +98,17 @@ export class HudScene extends Phaser.Scene {
       })
       .setOrigin(1, 0.5)
 
+    // Sits just above the HUD, blinking, because losing a macrophage with no
+    // explanation looks like the game taking one off you.
+    this.starvingWarning = this.add
+      .text(WORLD.width / 2, this.top - 20, '', {
+        fontFamily: font.family,
+        fontSize: '17px',
+        color: textColour.lost,
+      })
+      .setOrigin(0.5)
+      .setVisible(false)
+
     this.lostBanner = this.add
       .text(WORLD.width / 2, this.top / 2, 'TISSUE LOST', {
         fontFamily: font.family,
@@ -121,8 +133,9 @@ export class HudScene extends Phaser.Scene {
     this.refresh()
   }
 
-  update(): void {
+  update(time: number): void {
     this.refresh()
+    this.refreshStarvingWarning(time)
   }
 
   private buildSpeedButtons(midY: number): void {
@@ -230,6 +243,23 @@ export class HudScene extends Phaser.Scene {
       const active = button.speed === speed
       button.box.setFillStyle(active ? palette.hudButtonActive : palette.hudButton)
     }
+  }
+
+  /**
+   * Out of energy, with cells still to lose. Blinks, and counts down to the
+   * next one, so it is obvious both that they are dying and that stopping it is
+   * still possible — killing one bacterium can pay for them again.
+   */
+  private refreshStarvingWarning(time: number): void {
+    const starving = this.world.isStarving && !this.world.isLost
+    this.starvingWarning.setVisible(starving)
+    if (!starving) return
+
+    const next = Math.ceil(this.world.secondsToNextStarvation)
+    this.starvingWarning.setText(
+      `OUT OF ENERGY — your cells are starving. Next one dies in ${next}s`,
+    )
+    this.starvingWarning.setAlpha(0.55 + 0.45 * Math.sin(time / 140))
   }
 
   /** "Macrophages  2", and one entry per type once there are more of them. */

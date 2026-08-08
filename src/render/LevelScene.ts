@@ -16,6 +16,9 @@ const MS_PER_TICK = 1000 / TICKS_PER_SECOND
 /** Never run more than this many ticks in one frame, however long the frame was. */
 const MAX_TICKS_PER_FRAME = 12
 
+/** How long a dead immune cell takes to wither away, in level seconds. */
+const DEATH_FADE_SECONDS = 1.2
+
 export class LevelScene extends Phaser.Scene {
   private world!: World
   private tissueGraphics!: Phaser.GameObjects.Graphics
@@ -57,6 +60,8 @@ export class LevelScene extends Phaser.Scene {
     // After both, so nothing covers the labels up.
     this.drawLabels()
 
+    this.bindPointer()
+
     // Added here rather than in the game config so it always starts after the
     // world exists.
     if (!this.scene.get('hud')) {
@@ -87,6 +92,27 @@ export class LevelScene extends Phaser.Scene {
     this.drawTissue()
     this.drawPathogens()
     this.drawImmuneCells()
+  }
+
+  /**
+   * Click a macrophage to pick it up, then click the ground to send it there.
+   * Escape puts it down again.
+   *
+   * All this scene does is turn a click into a position and hand it to the
+   * simulation. What a click *means* is a game rule, so it lives in world.ts.
+   */
+  private bindPointer(): void {
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      // The HUD is a separate scene drawn over the bottom strip, so clicks down
+      // there belong to it and never to the tissue.
+      if (pointer.worldY >= TISSUE_VIEW.height) return
+
+      if (this.world.selectImmuneCellAt(pointer.worldX, pointer.worldY)) return
+
+      this.world.orderSelectedTo(pointer.worldX, pointer.worldY)
+    })
+
+    this.input.keyboard?.on('keydown-ESC', () => this.world.clearSelection())
   }
 
   /** Vessels and wounds. Drawn once, underneath the tissue. */
@@ -226,30 +252,53 @@ export class LevelScene extends Phaser.Scene {
     const graphics = this.immuneGraphics
     graphics.clear()
 
-    for (const cell of this.world.immuneCells) {
-      if (!cell.alive) continue
+    const selected = this.world.selectedImmuneCell
 
+    // Orders first, underneath everything, so a cell is never hidden by its own
+    // destination marker.
+    for (const cell of this.world.immuneCells) {
+      if (!cell.alive || !cell.order) continue
+
+      graphics.lineStyle(1, palette.selection, 0.3)
+      graphics.lineBetween(cell.x, cell.y, cell.order.x, cell.order.y)
+
+      graphics.lineStyle(2, palette.selection, 0.7)
+      graphics.strokeCircle(cell.order.x, cell.order.y, 6)
+    }
+
+    for (const cell of this.world.immuneCells) {
       const def = findImmuneCell(cell.defId)
       if (!def) continue
 
       const colour = immunePalette[def.id]
       if (!colour) continue
 
+      // A dead cell withers away over a second or so instead of vanishing
+      // between frames, so you can see that you lost one and roughly why.
+      const fade = cell.alive ? 1 : this.fadeFor(cell)
+      if (fade <= 0) continue
+
       // 0 the instant it swallows something, 1 when it has finished digesting.
       const digested = cell.meal ? 1 - cell.meal.secondsLeft / cell.meal.totalSeconds : 1
-      const swell = 1 + 0.14 * (1 - digested)
+      const swell = (1 + 0.14 * (1 - digested)) * (0.7 + 0.3 * fade)
 
       const outline = buildPearOutline(cell, def, swell)
 
-      graphics.fillStyle(colour.fill, 1)
+      // A ring on the ground under the one you have picked up.
+      if (cell === selected) {
+        graphics.lineStyle(2, palette.selection, 0.9)
+        graphics.strokeCircle(cell.x, cell.y, def.radius * swell + 7)
+      }
+
+      graphics.fillStyle(colour.fill, fade)
       graphics.fillPoints(outline, true)
 
-      graphics.lineStyle(2, colour.edge, 1)
+      graphics.lineStyle(2, colour.edge, fade)
       graphics.strokePoints(outline, true)
 
       // The nucleus sits forward of centre, out of the way of the belly.
       const nucleus = insideCell(cell, def, -0.22)
-      graphics.fillStyle(colour.nucleus, 0.5)
+      graphics.fillStyle(colour.nucleus, 0.5 * fade)
       graphics.fillCircle(nucleus.x, nucleus.y, def.radius * 0.28)
 
       if (!cell.meal) continue
@@ -258,9 +307,17 @@ export class LevelScene extends Phaser.Scene {
       const size = def.radius * 0.44 * (1 - digested)
       if (size < 1) continue
 
-      graphics.fillStyle(mealColour(cell.meal.pathogenDefId), 0.9)
+      graphics.fillStyle(mealColour(cell.meal.pathogenDefId), 0.9 * fade)
       graphics.fillCircle(meal.x, meal.y, size)
     }
+  }
+
+  /** 1 the moment a cell dies, down to 0 once it has finished withering away. */
+  private fadeFor(cell: ImmuneCell): number {
+    if (cell.diedAtSeconds === null) return 0
+
+    const since = this.world.elapsedSeconds - cell.diedAtSeconds
+    return since >= DEATH_FADE_SECONDS ? 0 : 1 - since / DEATH_FADE_SECONDS
   }
 }
 
