@@ -212,7 +212,16 @@ export class HudScene extends Phaser.Scene {
     this.lostBanner.setVisible(lost)
     this.lostSubtitle.setVisible(lost)
     if (lost) {
-      this.lostSubtitle.setText(`the tissue held out for ${formatClock(this.world.lostAtSeconds)}`)
+      // Which way you lost matters: every body cell eaten is a different
+      // failure from your last cell starving, and they should not read alike.
+      const cause =
+        this.world.lossReason === 'tissue'
+          ? 'every body cell is dead'
+          : 'your last immune cell starved'
+
+      this.lostSubtitle.setText(
+        `${cause} — it held out for ${formatClock(this.world.lostAtSeconds)}`,
+      )
     }
 
     this.drawEnergyBar(economy.energy)

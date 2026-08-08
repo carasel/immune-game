@@ -25,6 +25,14 @@ import { generateBodyCells, type BodyCell } from './tissue'
 export const TICKS_PER_SECOND = 60
 export const SECONDS_PER_TICK = 1 / TICKS_PER_SECOND
 
+/**
+ * The two ways to lose a level.
+ *
+ * `tissue` — every body cell is dead. There is nothing left to defend.
+ * `starvation` — no energy left, and the last immune cell has starved.
+ */
+export type LossReason = 'tissue' | 'starvation'
+
 export class World {
   readonly level: LevelDef
   readonly bounds: Size
@@ -44,7 +52,7 @@ export class World {
   /** How long the tissue held out. Only meaningful once `isLost` is true. */
   lostAtSeconds = 0
 
-  private lost = false
+  private lostTo: LossReason | null = null
   private readonly rng: Rng
   private nextPathogenId = 1
   private nextImmuneCellId = 1
@@ -75,6 +83,12 @@ export class World {
   /**
    * Advance the world by exactly one tick.
    *
+   * The order matters: earn first, then pay the upkeep, then see who starves.
+   * Energy stops at zero, so "still zero once the bills are paid" is exactly
+   * what "the tissue can't afford its immune cells" means. Charging upkeep
+   * before the income arrives would nudge the total back above zero every
+   * single tick, and nothing would ever starve.
+   *
    * Losing does not stop the simulation — the bacteria carry on and finish the
    * tissue off, which is worth watching and worth knowing when balancing. The
    * loss is latched instead, so energy climbing back above zero afterwards
@@ -84,14 +98,10 @@ export class World {
     this.tickCount++
     this.releaseDueWaves()
     this.updatePathogens()
-    this.updateImmuneCells()
     this.economy.addIncome(this.livingBodyCellCount, SECONDS_PER_TICK)
+    this.updateImmuneCells()
     this.starveImmuneCells()
-
-    if (!this.lost && this.economy.isEmpty && this.livingImmuneCellCount === 0) {
-      this.lost = true
-      this.lostAtSeconds = this.elapsedSeconds
-    }
+    this.checkForLoss()
   }
 
   get elapsedSeconds(): number {
@@ -143,13 +153,38 @@ export class World {
     return counts
   }
 
-  /**
-   * Out of energy AND out of cells. Zero energy on its own is not the end: the
-   * cells starve one at a time, so there is a panicky window where killing
-   * something can still turn it around — see GAME_DESIGN.md section 2.
-   */
   get isLost(): boolean {
-    return this.lost
+    return this.lostTo !== null
+  }
+
+  /** Which way it was lost, or null while it is still going. */
+  get lossReason(): LossReason | null {
+    return this.lostTo
+  }
+
+  /**
+   * Two ways to lose.
+   *
+   * Losing the tissue is immediate and absolute: with every body cell dead
+   * there is nothing left to defend and nothing left earning, so it is over
+   * however much energy happens to be banked.
+   *
+   * Running out of energy is the slow one. Zero energy on its own is not the
+   * end — the cells starve one at a time, so there is a panicky window where
+   * killing something can still turn it around. See GAME_DESIGN.md section 2.
+   */
+  private checkForLoss(): void {
+    if (this.isLost) return
+
+    if (this.livingBodyCellCount === 0) {
+      this.lostTo = 'tissue'
+    } else if (this.economy.isEmpty && this.livingImmuneCellCount === 0) {
+      this.lostTo = 'starvation'
+    } else {
+      return
+    }
+
+    this.lostAtSeconds = this.elapsedSeconds
   }
 
   private releaseDueWaves(): void {

@@ -77,6 +77,11 @@ dies every few seconds, visibly. You lose only when energy is at zero *and* no i
 remain. This gives a panicky comeback window instead of a sudden game over, and makes the
 spiral legible.
 
+**Losing all your tissue is the other way to lose**, and that one is immediate. With every
+body cell dead there is nothing left to defend and nothing left earning, so the level is over
+whatever your energy says. Without this rule a couple of macrophages can farm the bacteria on
+a field of corpses forever, banking energy in a game that can no longer be won.
+
 ---
 
 ## 3. The tissue
@@ -423,5 +428,7 @@ campaign → eosinophils → threadworm and hookworm levels.
   happen.
 - Losing is now **zero energy AND no immune cells left**, with one cell starving every 4
   seconds until then.
+- **Losing every body cell is also a loss**, and an immediate one. Otherwise macrophages farm
+  the bacteria on dead tissue forever and the level never ends.
 - Immune cells **do** block each other (`immuneCellsBlockEachOther` in balance.ts, so it
   really was a one-line change).
