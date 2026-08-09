@@ -48,6 +48,8 @@ export class HudScene extends Phaser.Scene {
   private starvingWarning!: Phaser.GameObjects.Text
   private lostBanner!: Phaser.GameObjects.Text
   private lostSubtitle!: Phaser.GameObjects.Text
+  private wonBanner!: Phaser.GameObjects.Text
+  private wonSubtitle!: Phaser.GameObjects.Text
 
   private recruitHint!: Phaser.GameObjects.Text
   private recruitButton!: Phaser.GameObjects.Rectangle
@@ -156,17 +158,34 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setVisible(false)
 
-    this.lostBanner = this.add
-      .text(WORLD.width / 2, this.top / 2, 'TISSUE LOST', {
+    // The two endings. Only ever one of them: the world decides once and latches.
+    this.lostBanner = this.buildBanner('TISSUE LOST', textColour.lost)
+    this.lostSubtitle = this.buildSubtitle()
+
+    this.wonBanner = this.buildBanner('TISSUE SAVED', textColour.won)
+    this.wonSubtitle = this.buildSubtitle()
+
+    this.buildSpeedButtons(midY)
+    this.buildRecruitButton(midY)
+    this.buildRecruitMenu()
+    this.bindKeys()
+    this.refresh()
+  }
+
+  private buildBanner(message: string, colour: string): Phaser.GameObjects.Text {
+    return this.add
+      .text(WORLD.width / 2, this.top / 2, message, {
         fontFamily: font.family,
         fontSize: '44px',
-        color: textColour.lost,
+        color: colour,
       })
       .setOrigin(0.5)
       .setVisible(false)
+  }
 
-    // How long it held out — the number to watch when balancing a level.
-    this.lostSubtitle = this.add
+  /** The line under a banner — how it went, and how long it took. */
+  private buildSubtitle(): Phaser.GameObjects.Text {
+    return this.add
       .text(WORLD.width / 2, this.top / 2 + 36, '', {
         fontFamily: font.family,
         fontSize: '16px',
@@ -174,12 +193,6 @@ export class HudScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setVisible(false)
-
-    this.buildSpeedButtons(midY)
-    this.buildRecruitButton(midY)
-    this.buildRecruitMenu()
-    this.bindKeys()
-    this.refresh()
   }
 
   update(time: number): void {
@@ -414,6 +427,17 @@ export class HudScene extends Phaser.Scene {
       )
     }
 
+    const won = this.world.isWon
+    this.wonBanner.setVisible(won)
+    this.wonSubtitle.setVisible(won)
+    if (won) {
+      // How much tissue you saved is the score. Time is the tiebreaker.
+      this.wonSubtitle.setText(
+        `infection cleared in ${formatClock(this.world.wonAtSeconds)} — ` +
+          `${living} of ${total} body cells made it`,
+      )
+    }
+
     this.drawEnergyBar(economy.energy)
 
     for (const button of this.speedButtons) {
@@ -454,7 +478,7 @@ export class HudScene extends Phaser.Scene {
    * still possible — killing one bacterium can pay for them again.
    */
   private refreshStarvingWarning(time: number): void {
-    const starving = this.world.isStarving && !this.world.isLost
+    const starving = this.world.isStarving && !this.world.isOver
     this.starvingWarning.setVisible(starving)
     if (!starving) return
 

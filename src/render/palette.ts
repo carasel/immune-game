@@ -65,6 +65,7 @@ export const textColour = {
   entry: '#7df0e4',
   bacteria: '#82abff',
   immune: '#ffd94a',
+  won: '#6ef2a0',
   lost: '#ff6b6b',
 }
 

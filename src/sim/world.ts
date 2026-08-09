@@ -52,8 +52,11 @@ export class World {
 
   /** How long the tissue held out. Only meaningful once `isLost` is true. */
   lostAtSeconds = 0
+  /** How long clearing the infection took. Only meaningful once `isWon`. */
+  wonAtSeconds = 0
 
   private lostTo: LossReason | null = null
+  private won = false
   /** Which immune cell the player has clicked on, if any. */
   private selectedId: number | null = null
   /**
@@ -98,10 +101,10 @@ export class World {
    * before the income arrives would nudge the total back above zero every
    * single tick, and nothing would ever starve.
    *
-   * Losing does not stop the simulation — the bacteria carry on and finish the
-   * tissue off, which is worth watching and worth knowing when balancing. The
-   * loss is latched instead, so energy climbing back above zero afterwards
-   * doesn't undo it.
+   * Neither winning nor losing stops the simulation — after a loss the bacteria
+   * carry on and finish the tissue off, which is worth watching and worth
+   * knowing when balancing. The outcome is latched instead, so energy climbing
+   * back above zero afterwards doesn't undo it.
    */
   step(): void {
     this.tickCount++
@@ -110,7 +113,7 @@ export class World {
     this.economy.addIncome(this.livingBodyCellCount, SECONDS_PER_TICK)
     this.updateImmuneCells()
     this.starveImmuneCells()
-    this.checkForLoss()
+    this.checkForOutcome()
   }
 
   get elapsedSeconds(): number {
@@ -171,8 +174,26 @@ export class World {
     return this.lostTo
   }
 
+  get isWon(): boolean {
+    return this.won
+  }
+
+  /** True once the level is decided, either way. */
+  get isOver(): boolean {
+    return this.isLost || this.won
+  }
+
   /**
-   * Two ways to lose.
+   * Has every wave the level had arrived? Until they all have, killing the last
+   * bacterium on screen is a lull, not a victory.
+   */
+  get allWavesReleased(): boolean {
+    return this.nextWave >= this.level.waves.length
+  }
+
+  /**
+   * How the level ends. It is decided once and then latched, so the simulation
+   * can carry on running afterwards without the answer changing.
    *
    * Losing the tissue is immediate and absolute: with every body cell dead
    * there is nothing left to defend and nothing left earning, so it is over
@@ -181,19 +202,31 @@ export class World {
    * Running out of energy is the slow one. Zero energy on its own is not the
    * end — the cells starve one at a time, so there is a panicky window where
    * killing something can still turn it around. See GAME_DESIGN.md section 2.
+   *
+   * Winning is the other side of it: every wave has arrived, and you killed
+   * everything that came. Losing is checked first, because tissue with nothing
+   * left alive in it has not been saved by the infection also being over.
    */
-  private checkForLoss(): void {
-    if (this.isLost) return
+  private checkForOutcome(): void {
+    if (this.isOver) return
 
     if (this.livingBodyCellCount === 0) {
       this.lostTo = 'tissue'
     } else if (this.economy.isEmpty && this.livingImmuneCellCount === 0) {
       this.lostTo = 'starvation'
-    } else {
+    }
+
+    if (this.isLost) {
+      this.lostAtSeconds = this.elapsedSeconds
       return
     }
 
-    this.lostAtSeconds = this.elapsedSeconds
+    // `nextWave > 0` means at least one wave actually turned up: a level with
+    // no waves at all has no infection to clear, so it cannot be won.
+    if (this.nextWave > 0 && this.allWavesReleased && this.livingPathogenCount === 0) {
+      this.won = true
+      this.wonAtSeconds = this.elapsedSeconds
+    }
   }
 
   private releaseDueWaves(): void {

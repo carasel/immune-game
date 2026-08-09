@@ -132,7 +132,13 @@ export const neutrophil: ImmuneCellDef = {
   visionRange: 190,
   wanderChangeSeconds: 1.6,
 
-  engulfPathogenSeconds: 1.2,
+  /**
+   * Twice as slow as a macrophage. A neutrophil is not the specialist eater —
+   * it catches things a macrophage never could, then stands there busy for four
+   * seconds dealing with it. Its real weapons are coming: NETs, and the
+   * poisonous granules it is named for.
+   */
+  engulfPathogenSeconds: 4,
   energyPerPathogen: 4,
 
   cost: 30,

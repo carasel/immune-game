@@ -20,7 +20,10 @@ Parasites are real and named (threadworm, hookworm).
 3. Immune cells wander, spot pathogens within their vision range, and attack on their own.
 4. The player selects cells and directs them, spends energy to recruit more, and later
    triggers inflammation and calls in the adaptive immune system.
-5. Body cells die. Energy drains. You lose when energy runs out and you have no cells left.
+5. Body cells die. Energy drains. You lose when energy runs out and you have no cells left,
+   or when the last body cell dies.
+6. You **win** by killing every pathogen once every wave has arrived. The score is how much
+   tissue you saved, and how long it took.
 
 The game is a fight against a **death spiral**: dying tissue costs you energy directly *and*
 reduces your income, so falling behind accelerates. Recovering means killing pathogens fast
@@ -76,6 +79,11 @@ Hitting zero is not instant death. At zero energy your immune cells begin **star
 dies every few seconds, visibly, the shortest-lived first. You lose only when energy is at
 zero *and* no immune cells remain. This gives a panicky comeback window instead of a sudden game over, and makes the
 spiral legible.
+
+**Winning** is clearing the infection: every wave the level had has arrived, and nothing from
+them is still alive. Killing the last bacterium on screen while a wave is still to come is a
+lull, not a victory — so a level with no waves at all cannot be won, because there was never
+an infection to clear. The tissue you have left when it ends is the score.
 
 **Losing all your tissue is the other way to lose**, and that one is immediate. With every
 body cell dead there is nothing left to defend and nothing left earning, so the level is over
@@ -182,7 +190,7 @@ Real cells, real behaviour. Unlocked gradually across the campaign so level 1 is
 
 | Cell | Role in the game | Reality it's based on |
 | --- | --- | --- |
-| **Neutrophil** | cheap, fast, short-lived. Eats bacteria. Can be ordered to die and form a **NET** — damages pathogens *and* body cells in a zone | most abundant white blood cell, lives hours, extracellular traps genuinely harm host tissue |
+| **Neutrophil** | cheap, fast, short-lived, and deliberately bad at eating. Its weapons are **degranulation** — spraying poison that hurts pathogens *and* nearby body cells — and, when ordered to die, a **NET** that does the same across a zone | most abundant white blood cell, lives hours. Its granules really are full of poison: defensins, elastase, and myeloperoxidase, which makes bleach. Extracellular traps genuinely harm host tissue |
 | **Macrophage** | slow, tanky, long-lived. Eats pathogens and debris — your **income engine**. Later: presents antigen to unlock adaptive immunity | big eater, cleans up dead cells, bridges innate and adaptive immunity |
 | **Mast cell** | *deferred — must be accurate when it lands* | releases histamine, makes vessels leaky so immune cells flood in faster; also anti-parasite |
 | **Dendritic cell** | samples a pathogen and carries its signature off to learn it — the unit that **triggers adaptive immunity** | the professional antigen-presenting cell |
@@ -371,10 +379,15 @@ death spiral is already tense, the design works.*
 
 ### After that, roughly in order
 
-Inflammation → remaining bacteria colours → NETs → viruses and infected cells → natural
-killer cells → dendritic cells and adaptive immunity within a level → antibodies and
-complement as particle swarms → mast cell (accurately) → memory cells, save file and
-campaign → eosinophils → threadworm and hookworm levels.
+Inflammation → remaining bacteria colours → **degranulation and NETs** → viruses and infected
+cells → natural killer cells → dendritic cells and adaptive immunity within a level →
+antibodies and complement as particle swarms → mast cell (accurately) → memory cells, save
+file and campaign → eosinophils → threadworm and hookworm levels.
+
+Degranulation and NETs are the same idea at two scales, and they are what the neutrophil is
+*for* — it is bad at eating on purpose so that these carry it. Both hurt your own tissue,
+which is the interesting part: a player who panics and blankets a fight in poison pays for it
+in dead body cells, and that is exactly what happens in a real infection.
 
 ---
 
@@ -438,8 +451,25 @@ campaign → eosinophils → threadworm and hookworm levels.
 - **A move order is absolute.** An ordered cell ignores bacteria and debris until it arrives,
   then forgets the order and hunts on its own again. Anything else and a move order would
   never finish during a fight.
+- *Consequence, found by playing it:* **fiddling loses.** Order everything to the cut once and
+  level 1 is won at 1:52; keep re-ordering them to the same spot every few seconds and it is
+  lost at 2:35, because every fresh order stops them eating. Position your cells, then trust
+  them. That is a defensible thing for the game to teach — but it does mean the punishment for
+  over-managing is severe, and it is worth watching whether that reads as depth or as the
+  controls fighting you.
 - **One cell selected at a time**, for now. Box selection can come when there are enough cells
   on screen to need it.
+- **You win by clearing the infection** — all waves arrived, nothing left alive — and the
+  banner says how much tissue you saved. Losing is checked first, because tissue with nothing
+  alive left in it has not been saved by the infection also being over.
+- **Level 1 is winnable on the cells you start with, but only if you play it.** Send all three
+  to the cut at the start and they meet each wave as it arrives: won at 1:52 with 48 of 50
+  body cells, nothing recruited. Left alone they lose the tissue at 3:44. That gap between the
+  two is the level doing its job.
+- **Camping the wound is the strong move**, because bacteria are at their most killable in the
+  second they arrive, before they have spread out and started dividing. Worth knowing when
+  designing later levels: an entry point the player can physically cover is a much softer
+  level than one they cannot.
 - **Recruiting is two clicks: pick the cell, then pick the vessel.** The energy is spent on
   the second one, so changing your mind costs nothing, and you have to look at the map before
   you can reinforce. Every vessel lights up while you choose.
@@ -460,6 +490,9 @@ campaign → eosinophils → threadworm and hookworm levels.
 - It earns **4** for a bacterium against the macrophage's 10, and does **no clearing up** —
   leave a cell's debris stats out in `cells.ts` and it walks past the mess. So a neutrophil
   never pays for itself: it is what you spend energy on to win a fight now.
+- It is also **twice as slow to digest** (4 seconds against 2). It catches things a macrophage
+  never could and then stands there useless while it deals with them. Eating is deliberately
+  the thing a neutrophil is worst at, because its real weapons are still to come.
 - Dead neutrophils **fade away** rather than leaving a husk. Pus really is mostly dead
   neutrophils and macrophages really do clear them up, so this is worth revisiting.
 - Level 1 starts with **2 macrophages and 1 neutrophil**, and the neutrophil dies of old age

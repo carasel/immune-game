@@ -4,6 +4,7 @@ import { blueBacteria } from '../src/content/pathogens'
 import { theCut } from '../src/content/levels'
 import { firstOfType, leaveDebris, placeBacterium, run, runUntil, worldWith } from './helpers'
 
+
 const oneNeutrophil = [{ cell: 'neutrophil', count: 1 }]
 
 describe('what makes a neutrophil different', () => {
@@ -31,6 +32,27 @@ describe('what makes a neutrophil different', () => {
 
     expect(macrophage.lifespanSeconds).toBeUndefined()
     expect(cell.alive).toBe(true)
+  })
+
+  it('is the worse eater: slower to digest than a macrophage', () => {
+    expect(neutrophil.engulfPathogenSeconds).toBeGreaterThan(macrophage.engulfPathogenSeconds)
+  })
+
+  it('is stuck doing nothing else for as long as it takes', () => {
+    const world = worldWith(oneNeutrophil)
+    const cell = firstOfType(world, 'neutrophil')
+    placeBacterium(world, cell.x + 40, cell.y)
+
+    runUntil(world, 20, () => cell.meal !== null)
+    const where = { x: cell.x, y: cell.y }
+
+    // A second bacterium arrives right beside it and gets a free run.
+    const second = placeBacterium(world, cell.x + 20, cell.y)
+    run(world, neutrophil.engulfPathogenSeconds - 0.5)
+
+    expect(cell.meal).not.toBeNull()
+    expect(Math.hypot(cell.x - where.x, cell.y - where.y)).toBe(0)
+    expect(second.alive).toBe(true)
   })
 
   it('eats bacteria, but earns less than a macrophage for it', () => {

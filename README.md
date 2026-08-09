@@ -58,9 +58,10 @@ Two rules keep this tidy as it grows:
    never makes a tick bigger. So the game behaves identically at 0.5x and 3x.
 
 Rule 1 is what makes the tests easy: they build a world, run it for a few seconds and check
-what happened, with no browser anywhere. `tests/losing.ts` also plays level 1 through to the
-end and checks it is still losable — a canary for balance, since a change that has nothing to
-do with balance can still quietly make the game easier.
+what happened, with no browser anywhere. Two of them play level 1 all the way through and
+bracket it: left alone it should lose the tissue, and sending everything to the cut should win
+it. They are canaries for balance, since a change that has nothing to do with balance can
+still quietly make the game easier or harder.
 
 ## Controls
 
@@ -101,6 +102,7 @@ Day 2 has started. The macrophage is in:
       than disappearing without explanation
 - [x] Recruiting: pay energy, pick a vessel, the cell walks in from there
 - [x] Neutrophils: small, orange, spiky and fast, dead of old age in 90 seconds
+- [x] Winning — clear every wave and the tissue is saved
 - [ ] Click a bacterium to send a cell after that one specifically
 - [ ] NETs — order a neutrophil to die and take the tissue with it
 - [ ] Waves, reproduction and mutation
