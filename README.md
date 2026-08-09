@@ -16,6 +16,8 @@ Then open http://localhost:5173. Vite hot-reloads, so saving a file updates the 
 immediately — including the numbers in `src/content/balance.ts`.
 
 ```bash
+npm test            # run the tests once
+npm run test:watch  # re-run them as you edit
 npm run typecheck   # check the types without building
 npm run build       # typecheck + production build into dist/
 ```
@@ -43,6 +45,9 @@ src/
     shapes.ts      the cell outlines, shared by the map and the HUD
     icons.ts       little pictures of a cell, a macrophage and a bacterium
     palette.ts     colours
+tests/           run with `npm test`. No Phaser, no browser — just the rules.
+  helpers.ts       building a world to test, and running it for a few seconds
+  economy.ts       … and one file per thing worth not breaking
 ```
 
 Two rules keep this tidy as it grows:
@@ -51,6 +56,11 @@ Two rules keep this tidy as it grows:
    without any rendering. Rendering changes cannot break the game.
 2. **The simulation always ticks at a fixed 60Hz.** Speeding up runs more ticks per frame; it
    never makes a tick bigger. So the game behaves identically at 0.5x and 3x.
+
+Rule 1 is what makes the tests easy: they build a world, run it for a few seconds and check
+what happened, with no browser anywhere. `tests/losing.ts` also plays level 1 through to the
+end and checks it is still losable — a canary for balance, since a change that has nothing to
+do with balance can still quietly make the game easier.
 
 ## Controls
 
