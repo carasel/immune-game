@@ -140,9 +140,12 @@ export const theCut: LevelDef = {
   // Where the bacteria get in.
   entries: [{ id: 'the-cut', label: 'the cut', edge: 'top', along: 0.5, width: 150, depth: 42 }],
 
-  // Two macrophages already patrolling. Enough to feel like you have help, not
-  // enough to hold the line on their own.
-  startingCells: [{ cell: 'macrophage', count: 2 }],
+  // Two macrophages already patrolling, and one neutrophil that will be dead of
+  // old age before the third wave lands — which is the lesson.
+  startingCells: [
+    { cell: 'macrophage', count: 2 },
+    { cell: 'neutrophil', count: 1 },
+  ],
 
   // A couple get in through the cut, then more as the wound stays open. They
   // also split in two on their own, so later waves land on top of a growing

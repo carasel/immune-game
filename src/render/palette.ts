@@ -54,6 +54,7 @@ export const pathogenPalette = {
  */
 export const immunePalette: Record<string, { fill: number; edge: number; nucleus: number }> = {
   macrophage: { fill: 0xffd23f, edge: 0xc98a0b, nucleus: 0x8f5f00 },
+  neutrophil: { fill: 0xffa040, edge: 0xcc6a10, nucleus: 0x8a4300 },
 }
 
 export const textColour = {

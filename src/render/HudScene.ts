@@ -3,13 +3,8 @@ import { balance } from '../content/balance'
 import { findImmuneCell, immuneCells } from '../content/cells'
 import { HUD_HEIGHT, WORLD } from '../content/levels'
 import type { World } from '../sim/world'
-import {
-  drawBacteriumIcon,
-  drawBodyCellIcon,
-  drawEnergyIcon,
-  drawMacrophageIcon,
-} from './icons'
-import { font, palette, textColour } from './palette'
+import { drawBacteriumIcon, drawBodyCellIcon, drawEnergyIcon, drawImmuneCellIcon } from './icons'
+import { font, immunePalette, palette, textColour } from './palette'
 
 interface SpeedButton {
   speed: number
@@ -26,6 +21,15 @@ interface RecruitRow {
 /** Left of the speed buttons, which are pinned to the right-hand end. */
 const RECRUIT_BUTTON_X = 700
 
+/** Where the immune cell counts start, and how far apart their slots sit. */
+const IMMUNE_READOUT_X = 410
+const IMMUNE_READOUT_STEP = 56
+
+/** Phaser wants 0xRRGGBB for shapes and '#rrggbb' for text. */
+function hexColour(colour: number | undefined): string {
+  return colour === undefined ? textColour.bright : `#${colour.toString(16).padStart(6, '0')}`
+}
+
 /**
  * The bar along the bottom: energy, how much tissue is left, the clock, and the
  * speed controls. Lives in its own scene so UI never fights the game camera.
@@ -36,7 +40,8 @@ export class HudScene extends Phaser.Scene {
   private energyText!: Phaser.GameObjects.Text
   private incomeText!: Phaser.GameObjects.Text
   private tissueText!: Phaser.GameObjects.Text
-  private immuneText!: Phaser.GameObjects.Text
+  /** One count per immune cell type, keyed by its def id. */
+  private immuneTexts = new Map<string, Phaser.GameObjects.Text>()
   private bacteriaText!: Phaser.GameObjects.Text
   private clockText!: Phaser.GameObjects.Text
   private energyBar!: Phaser.GameObjects.Graphics
@@ -100,18 +105,30 @@ export class HudScene extends Phaser.Scene {
       })
       .setOrigin(0, 0.5)
 
-    drawMacrophageIcon(icons, 428, midY, 10)
-    this.immuneText = this.add
-      .text(444, midY, '', {
-        fontFamily: font.family,
-        fontSize: '13px',
-        color: textColour.immune,
-      })
-      .setOrigin(0, 0.5)
+    // One slot per cell type, so a new cell in content/cells.ts gets a readout
+    // without anything here changing. Three types would want a wider gap or a
+    // smaller step; two fit comfortably.
+    immuneCells.forEach((def, index) => {
+      const x = IMMUNE_READOUT_X + index * IMMUNE_READOUT_STEP
 
-    drawBacteriumIcon(icons, 504, midY, 10)
+      drawImmuneCellIcon(icons, x, midY, def.radius >= 20 ? 10 : 9, def)
+
+      this.immuneTexts.set(
+        def.id,
+        this.add
+          .text(x + 16, midY, '', {
+            fontFamily: font.family,
+            fontSize: '13px',
+            color: hexColour(immunePalette[def.id]?.fill),
+          })
+          .setOrigin(0, 0.5),
+      )
+    })
+
+    const bacteriaX = IMMUNE_READOUT_X + immuneCells.length * IMMUNE_READOUT_STEP + 4
+    drawBacteriumIcon(icons, bacteriaX, midY, 10)
     this.bacteriaText = this.add
-      .text(522, midY, '', {
+      .text(bacteriaX + 18, midY, '', {
         fontFamily: font.family,
         fontSize: '13px',
         color: textColour.bacteria,
@@ -263,7 +280,7 @@ export class HudScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true })
 
       // The same picture as the HUD readout and the cell on the map.
-      drawMacrophageIcon(icons, left + padding + 20, y, 11)
+      drawImmuneCellIcon(icons, left + padding + 20, y, def.radius >= 20 ? 11 : 9, def)
 
       const label = this.add
         .text(left + padding + 42, y, def.name, {
@@ -368,7 +385,11 @@ export class HudScene extends Phaser.Scene {
     this.incomeText.setColor(perSecond < 0 ? textColour.lost : textColour.energy)
 
     this.tissueText.setText(`${living}/${total}`)
-    this.immuneText.setText(`${this.world.livingImmuneCellCount}`)
+
+    const counts = this.world.immuneCellCounts
+    for (const [defId, text] of this.immuneTexts) {
+      text.setText(`${counts.get(defId) ?? 0}`)
+    }
 
     const bacteria = this.world.livingPathogenCount
     this.bacteriaText.setText(bacteria === 0 ? '—' : `${bacteria}`)

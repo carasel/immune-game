@@ -35,6 +35,10 @@ export interface ImmuneCellDef {
    */
   nose: number
   belly: number
+  /** How many spikes go round the outside. 0 for a smooth cell. */
+  spikes: number
+  /** How far the spikes stick out, as a fraction of the radius. */
+  spikiness: number
 
   // --- how it behaves ---
   /**
@@ -54,12 +58,15 @@ export interface ImmuneCellDef {
    * macrophage that is busy.
    */
   engulfPathogenSeconds: number
-  /** Seconds spent clearing away one dead body cell. */
-  engulfDebrisSeconds: number
   /** Energy earned for a finished pathogen meal. */
   energyPerPathogen: number
-  /** Energy for a cleared dead body cell. Smaller — debris is less of a meal. */
-  energyPerDebris: number
+  /**
+   * Clearing up after dead body cells: how long it takes and what it pays.
+   * Leave both out for a cell that doesn't do clean-up — that is the
+   * macrophage's job, and a neutrophil walks straight past the mess.
+   */
+  engulfDebrisSeconds?: number
+  energyPerDebris?: number
 
   // --- what it costs you ---
   /** Energy to recruit one. Used by the recruit panel. */
@@ -82,6 +89,8 @@ export const macrophage: ImmuneCellDef = {
   radius: 22,
   nose: 0.34,
   belly: 0.16,
+  spikes: 0,
+  spikiness: 0,
 
   /** Slow on purpose. Bacteria swim at 24, so a macrophage cannot chase one down. */
   speed: 16,
@@ -89,15 +98,51 @@ export const macrophage: ImmuneCellDef = {
   wanderChangeSeconds: 3,
 
   engulfPathogenSeconds: 2,
-  engulfDebrisSeconds: 3,
   energyPerPathogen: 10,
+  engulfDebrisSeconds: 3,
   energyPerDebris: 5,
 
   cost: 60,
   upkeepPerSecond: 0.4,
 }
 
-export const immuneCells: ImmuneCellDef[] = [macrophage]
+/**
+ * The first cell to arrive at anything going wrong. Small, spiky, fast enough
+ * to run a bacterium down, and dead within a couple of minutes whatever
+ * happens — which is real: neutrophils live hours where a macrophage lives
+ * months, and your body makes a hundred billion of them a day.
+ *
+ * It eats bacteria but earns little for it and does no clearing up, so it
+ * fights without ever paying for itself. That is the trade: buy them when you
+ * need the fight won now, and know they are a cost.
+ */
+export const neutrophil: ImmuneCellDef = {
+  id: 'neutrophil',
+  name: 'Neutrophil',
+
+  radius: 14,
+  // Barely a pear — mostly a spiky ball that still points where it's going.
+  nose: 0.12,
+  belly: 0.06,
+  spikes: 9,
+  spikiness: 0.2,
+
+  /** Faster than the bacteria swim, so it can actually catch them. */
+  speed: 34,
+  visionRange: 190,
+  wanderChangeSeconds: 1.6,
+
+  engulfPathogenSeconds: 1.2,
+  energyPerPathogen: 4,
+
+  cost: 30,
+  upkeepPerSecond: 0.2,
+
+  /** 90 seconds. Everything else about the neutrophil follows from this. */
+  lifespanSeconds: 90,
+}
+
+export const immuneCells: ImmuneCellDef[] = [macrophage, neutrophil]
 
 const byId = new Map(immuneCells.map((def) => [def.id, def]))
 

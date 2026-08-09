@@ -10,7 +10,7 @@ import type { BodyCell } from '../sim/tissue'
 import { TICKS_PER_SECOND, World } from '../sim/world'
 import { HudScene } from './HudScene'
 import { font, immunePalette, palette, pathogenPalette, textColour } from './palette'
-import { insidePear, pearOutline } from './shapes'
+import { cellOutline, insideCell } from './shapes'
 
 const MS_PER_TICK = 1000 / TICKS_PER_SECOND
 
@@ -331,7 +331,7 @@ export class LevelScene extends Phaser.Scene {
       const digested = cell.meal ? 1 - cell.meal.secondsLeft / cell.meal.totalSeconds : 1
       const swell = (1 + 0.14 * (1 - digested)) * (0.7 + 0.3 * fade)
 
-      const outline = pearOutline(cell.x, cell.y, cell.angle, def, swell)
+      const outline = cellOutline(cell.x, cell.y, cell.angle, def, swell)
 
       // A ring on the ground under the one you have picked up.
       if (cell === selected) {
@@ -346,13 +346,13 @@ export class LevelScene extends Phaser.Scene {
       graphics.strokePoints(outline, true)
 
       // The nucleus sits forward of centre, out of the way of the belly.
-      const nucleus = insidePear(cell.x, cell.y, cell.angle, def, -0.22)
+      const nucleus = insideCell(cell.x, cell.y, cell.angle, def, -0.22)
       graphics.fillStyle(colour.nucleus, 0.5 * fade)
       graphics.fillCircle(nucleus.x, nucleus.y, def.radius * 0.28)
 
       if (!cell.meal) continue
 
-      const meal = insidePear(cell.x, cell.y, cell.angle, def, 0.36)
+      const meal = insideCell(cell.x, cell.y, cell.angle, def, 0.36)
       const size = def.radius * 0.44 * (1 - digested)
       if (size < 1) continue
 

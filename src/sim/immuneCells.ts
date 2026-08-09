@@ -155,26 +155,31 @@ export function updateImmuneCell(
     return
   }
 
-  const husk = nearestDebrisInRange(cell, def.visionRange, ctx.bodyCells)
-  if (husk) {
-    cell.angle = Math.atan2(husk.y - cell.y, husk.x - cell.x)
+  // Clearing up is the macrophage's job. A cell with no clean-up stats — a
+  // neutrophil — walks straight past the mess.
+  if (def.engulfDebrisSeconds !== undefined) {
+    const husk = nearestDebrisInRange(cell, def.visionRange, ctx.bodyCells)
 
-    const reach = (def.radius + husk.radius) * DEBRIS_REACH
+    if (husk) {
+      cell.angle = Math.atan2(husk.y - cell.y, husk.x - cell.x)
 
-    if (distance(cell.x, cell.y, husk.x, husk.y) <= reach) {
-      // Cleared. The outline goes now, so no other macrophage comes for it.
-      husk.debris = false
-      cell.meal = {
-        kind: 'debris',
-        secondsLeft: def.engulfDebrisSeconds,
-        totalSeconds: def.engulfDebrisSeconds,
-        reward: def.energyPerDebris,
+      const reach = (def.radius + husk.radius) * DEBRIS_REACH
+
+      if (distance(cell.x, cell.y, husk.x, husk.y) <= reach) {
+        // Cleared. The outline goes now, so no other macrophage comes for it.
+        husk.debris = false
+        cell.meal = {
+          kind: 'debris',
+          secondsLeft: def.engulfDebrisSeconds,
+          totalSeconds: def.engulfDebrisSeconds,
+          reward: def.energyPerDebris ?? 0,
+        }
+        return
       }
+
+      crawl(cell, def, ctx)
       return
     }
-
-    crawl(cell, def, ctx)
-    return
   }
 
   cell.wanderIn -= ctx.dt

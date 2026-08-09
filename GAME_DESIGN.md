@@ -73,8 +73,8 @@ costMacrophage            60
 ### Running out
 
 Hitting zero is not instant death. At zero energy your immune cells begin **starving** — one
-dies every few seconds, visibly. You lose only when energy is at zero *and* no immune cells
-remain. This gives a panicky comeback window instead of a sudden game over, and makes the
+dies every few seconds, visibly, the shortest-lived first. You lose only when energy is at
+zero *and* no immune cells remain. This gives a panicky comeback window instead of a sudden game over, and makes the
 spiral legible.
 
 **Losing all your tissue is the other way to lose**, and that one is immediate. With every
@@ -453,6 +453,22 @@ campaign → eosinophils → threadworm and hookworm levels.
   the same code and content as the real things (`render/shapes.ts`, `render/icons.ts`), so
   they can't drift apart. Recruiting is a single **+** button that opens a floating menu,
   which is where the names and costs live — words cost height, pictures don't.
+- **Neutrophils are small, orange and spiky**, and fast enough (34) to run a bacterium (24)
+  down, which a macrophage (16) never can.
+- **A neutrophil lives 90 seconds** and then dies of old age wherever it stands. That single
+  number is what makes it a different cell from the macrophage rather than a cheap one.
+- It earns **4** for a bacterium against the macrophage's 10, and does **no clearing up** —
+  leave a cell's debris stats out in `cells.ts` and it walks past the mess. So a neutrophil
+  never pays for itself: it is what you spend energy on to win a fight now.
+- Dead neutrophils **fade away** rather than leaving a husk. Pus really is mostly dead
+  neutrophils and macrophages really do clear them up, so this is worth revisiting.
+- Level 1 starts with **2 macrophages and 1 neutrophil**, and the neutrophil dies of old age
+  before the third wave — which is how you learn what it is.
+- **Starvation takes whoever has least life left**, so neutrophils go before macrophages, and
+  the nearly-spent neutrophil before the fresh one. Between cells that would both have lived
+  for ever it is still the oldest. Taking your income engine first was backwards in both
+  directions: neutrophils are the disposable ones, and losing the expensive cell first while
+  bankrupt is the cruellest possible order.
 - **Starving has to be seen to happen.** A cell dying at zero energy withers away over a
   second instead of vanishing, and the HUD blinks a warning with a countdown to the next one
   while it is happening. Playtested as a bug — a macrophage disappearing with no explanation

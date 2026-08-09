@@ -517,14 +517,35 @@ export class World {
 
     this.starveIn = balance.starvationSecondsPerCell
 
-    // The oldest one goes first.
-    let oldest: ImmuneCell | undefined
+    // Whoever has the least life left in them goes first: a neutrophil with
+    // seconds to live before a macrophage that would have lasted for months.
+    // Both accurate — neutrophils are the disposable ones, made and replaced by
+    // the billion — and kinder, since it costs you the cheap cell first.
+    let weakest: ImmuneCell | undefined
+    let leastLeft = Number.POSITIVE_INFINITY
+    let oldestAge = -1
+
     for (const cell of this.immuneCells) {
       if (!cell.alive) continue
-      if (!oldest || cell.ageSeconds > oldest.ageSeconds) oldest = cell
+
+      const def = findImmuneCell(cell.defId)
+      if (!def) continue
+
+      const lifeLeft =
+        def.lifespanSeconds === undefined
+          ? Number.POSITIVE_INFINITY
+          : def.lifespanSeconds - cell.ageSeconds
+
+      // Between cells that would both have lived for ever, the oldest goes.
+      const weaker = lifeLeft < leastLeft || (lifeLeft === leastLeft && cell.ageSeconds > oldestAge)
+      if (!weaker) continue
+
+      weakest = cell
+      leastLeft = lifeLeft
+      oldestAge = cell.ageSeconds
     }
 
-    if (oldest) killImmuneCell(oldest, this.elapsedSeconds)
+    if (weakest) killImmuneCell(weakest, this.elapsedSeconds)
   }
 
   /**

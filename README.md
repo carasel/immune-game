@@ -90,7 +90,8 @@ Day 2 has started. The macrophage is in:
 - [x] Starving cells wither away visibly, with a warning and a countdown, rather
       than disappearing without explanation
 - [x] Recruiting: pay energy, pick a vessel, the cell walks in from there
+- [x] Neutrophils: small, orange, spiky and fast, dead of old age in 90 seconds
 - [ ] Click a bacterium to send a cell after that one specifically
-- [ ] Neutrophils
+- [ ] NETs — order a neutrophil to die and take the tissue with it
 - [ ] Waves, reproduction and mutation
 - [ ] Narrow vessels as bottlenecks — recruits queue instead of arriving at once

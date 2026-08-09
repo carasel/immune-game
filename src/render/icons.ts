@@ -1,8 +1,8 @@
 import type Phaser from 'phaser'
-import { macrophage } from '../content/cells'
+import { macrophage, type ImmuneCellDef } from '../content/cells'
 import { blueBacteria } from '../content/pathogens'
 import { immunePalette, palette, pathogenPalette } from './palette'
-import { insidePear, pearOutline } from './shapes'
+import { cellOutline, insideCell } from './shapes'
 
 /**
  * Little pictures of the things in the game, for the HUD.
@@ -51,18 +51,32 @@ export function drawBodyCellIcon(
   graphics.fillCircle(x, y, size * 0.34)
 }
 
-/** A macrophage: the yellow pear, facing right. */
-export function drawMacrophageIcon(
+/**
+ * Any immune cell, facing right, at its own shape and colours. One function for
+ * all of them, so a new cell type in content/cells.ts gets its picture free.
+ */
+export function drawImmuneCellIcon(
   graphics: Phaser.GameObjects.Graphics,
   x: number,
   y: number,
   size: number,
+  def: ImmuneCellDef,
 ): void {
-  const colour = immunePalette[macrophage.id]
-  const shape = { radius: size, nose: macrophage.nose, belly: macrophage.belly }
+  const colour = immunePalette[def.id]
+  if (!colour) return
 
-  // The pear's bulk sits behind its middle, so nudge it back to look centred.
-  const outline = pearOutline(x + size * 0.2, y, 0, shape)
+  const shape = {
+    radius: size,
+    nose: def.nose,
+    belly: def.belly,
+    spikes: def.spikes,
+    spikiness: def.spikiness,
+  }
+
+  // A lopsided cell's bulk sits behind its middle, so nudge it back to look
+  // centred in the space the icon is given.
+  const centreX = x + size * def.nose * 0.6
+  const outline = cellOutline(centreX, y, 0, shape)
 
   graphics.fillStyle(colour.fill, 1)
   graphics.fillPoints(outline, true)
@@ -70,9 +84,19 @@ export function drawMacrophageIcon(
   graphics.lineStyle(1.5, colour.edge, 1)
   graphics.strokePoints(outline, true)
 
-  const nucleus = insidePear(x + size * 0.2, y, 0, shape, -0.22)
+  const nucleus = insideCell(centreX, y, 0, shape, -0.22)
   graphics.fillStyle(colour.nucleus, 0.5)
   graphics.fillCircle(nucleus.x, nucleus.y, size * 0.28)
+}
+
+/** The macrophage specifically, for anywhere that just wants the one picture. */
+export function drawMacrophageIcon(
+  graphics: Phaser.GameObjects.Graphics,
+  x: number,
+  y: number,
+  size: number,
+): void {
+  drawImmuneCellIcon(graphics, x, y, size, macrophage)
 }
 
 /** A bacterium: the blue rod, at the proportions it is drawn in the tissue. */
