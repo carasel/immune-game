@@ -76,29 +76,64 @@ describe('sending a cell somewhere', () => {
     expect(gap(cell, target)).toBeLessThan(3)
   })
 
-  it('ignores a bacterium on the way, then goes back for it once it arrives', () => {
+  it('walks past a bacterium that is nowhere near where it was sent', () => {
     const world = worldWith(oneMacrophage)
     const cell = firstOfType(world, 'macrophage')
     world.selectImmuneCellAt(cell.x, cell.y)
 
-    const target = { x: Math.min(cell.x + 300, bounds.width - 40), y: cell.y }
+    const target = { x: Math.min(cell.x + 420, bounds.width - 30), y: cell.y }
     world.orderSelectedTo(target.x, target.y)
 
-    // Right on the route, well inside vision range.
-    const bacterium = placeBacterium(world, (cell.x + target.x) / 2, cell.y)
+    // Right on the route and impossible to miss, but a long way from the
+    // destination, so the order still wins.
+    const bacterium = placeBacterium(world, cell.x + 60, cell.y)
+    expect(gap(bacterium, target)).toBeGreaterThan(macrophage.visionRange)
 
     let ateOnTheWay = false
-    runUntil(world, 180, () => {
+    const arrived = runUntil(world, 240, () => {
       if (cell.meal) ateOnTheWay = true
       return cell.order === null
     })
 
+    expect(arrived).not.toBeNull()
     expect(ateOnTheWay).toBe(false)
     expect(bacterium.alive).toBe(true)
+  })
 
-    // Order done, hunting resumes.
-    const hunted = runUntil(world, 60, () => !bacterium.alive)
-    expect(hunted).not.toBeNull()
+  it('breaks off for a bacterium once it is nearly where it was sent', () => {
+    const world = worldWith(oneMacrophage)
+    const cell = firstOfType(world, 'macrophage')
+    world.selectImmuneCellAt(cell.x, cell.y)
+
+    const target = { x: Math.min(cell.x + 420, bounds.width - 30), y: cell.y }
+    world.orderSelectedTo(target.x, target.y)
+
+    // Sitting just short of the destination: it is what the player was sending
+    // the cell to deal with, so arriving on the exact spot first is silly.
+    const bacterium = placeBacterium(world, target.x - 70, cell.y)
+    expect(gap(bacterium, target)).toBeLessThan(macrophage.visionRange)
+
+    const ate = runUntil(world, 240, () => cell.meal !== null)
+
+    expect(ate).not.toBeNull()
+    expect(bacterium.alive).toBe(false)
+    // It gave up on the order to do it, rather than arriving first.
+    expect(cell.order).toBeNull()
+    expect(gap(cell, target)).toBeGreaterThan(3)
+  })
+
+  it('still finishes an order when there is nothing to fight at the far end', () => {
+    const world = worldWith(oneMacrophage)
+    const cell = firstOfType(world, 'macrophage')
+    world.selectImmuneCellAt(cell.x, cell.y)
+
+    const target = { x: 480, y: 300 }
+    world.orderSelectedTo(target.x, target.y)
+
+    const arrived = runUntil(world, 240, () => cell.order === null)
+
+    expect(arrived).not.toBeNull()
+    expect(gap(cell, target)).toBeLessThan(3)
   })
 
   it('finishes its meal first, then sets off', () => {
@@ -131,12 +166,14 @@ describe('sending a cell somewhere', () => {
     })
   })
 
-  it('survives a nonsense destination rather than losing the cell', () => {
+  it('refuses a nonsense destination rather than losing the cell to it', () => {
     const world = worldWith(oneMacrophage)
     const cell = firstOfType(world, 'macrophage')
     world.selectImmuneCellAt(cell.x, cell.y)
 
-    world.orderSelectedTo(Number.NaN, Number.NaN)
+    expect(world.orderSelectedTo(Number.NaN, Number.NaN)).toBe(false)
+    expect(cell.order).toBeNull()
+
     run(world, 5)
 
     expect(Number.isFinite(cell.x)).toBe(true)

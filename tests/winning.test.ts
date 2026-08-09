@@ -16,6 +16,19 @@ function clearTheWave(world: World): void {
   world.step()
 }
 
+/** The obvious good move: meet the bacteria at the wound they come in through. */
+function sendEveryoneToTheCut(world: World): void {
+  const cut = world.entries[0]
+
+  for (const cell of world.immuneCells) {
+    if (!cell.alive) continue
+    world.selectImmuneCellAt(cell.x, cell.y)
+    world.orderSelectedTo(cut.innerPoint.x, cut.innerPoint.y)
+  }
+
+  world.clearSelection()
+}
+
 describe('clearing the infection', () => {
   it('is won when the last bacterium dies and no more are coming', () => {
     const world = testWorld(oneWave)
@@ -203,14 +216,8 @@ describe('level 1 as it is tuned today', () => {
    */
   it('is won by sending everything to the cut, without recruiting anything', () => {
     const world = new World(theCut, TISSUE_VIEW)
-    const cut = world.entries[0]
 
-    // Meet them at the wound: every cell ordered there once, at the start.
-    for (const cell of world.immuneCells) {
-      world.selectImmuneCellAt(cell.x, cell.y)
-      world.orderSelectedTo(cut.innerPoint.x, cut.innerPoint.y)
-    }
-    world.clearSelection()
+    sendEveryoneToTheCut(world)
 
     const wonAt = runUntil(world, 400, (w) => w.isOver)
 
@@ -219,6 +226,27 @@ describe('level 1 as it is tuned today', () => {
     // On the cells it starts with. Nothing was bought.
     expect(world.economy.totalSpent).toBe(0)
     // And most of the tissue survives, which is what makes it a good win.
+    expect(world.livingBodyCellCount).toBeGreaterThan(world.bodyCells.length * 0.8)
+  })
+
+  it('is still won by a player who keeps fussing over their cells', () => {
+    // Re-ordering cells to the fight used to lose the level outright, because
+    // each new order stopped them eating. A cell that has nearly arrived now
+    // breaks off for anything it can see, so fussing costs nothing.
+    const world = new World(theCut, TISSUE_VIEW)
+    let lastOrder = 0
+
+    sendEveryoneToTheCut(world)
+
+    runUntil(world, 400, (w) => {
+      if (w.elapsedSeconds - lastOrder >= 8) {
+        lastOrder = w.elapsedSeconds
+        sendEveryoneToTheCut(w)
+      }
+      return w.isOver
+    })
+
+    expect(world.isWon, 'micro-managing loses the level again').toBe(true)
     expect(world.livingBodyCellCount).toBeGreaterThan(world.bodyCells.length * 0.8)
   })
 })

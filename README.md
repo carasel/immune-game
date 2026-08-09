@@ -66,8 +66,9 @@ still quietly make the game easier or harder.
 ## Controls
 
 - **Click a macrophage** to pick it up — it gets a ring round it
-- **Click the ground** to send it there. It walks there ignoring everything, then goes back
-  to hunting on its own
+- **Click the ground** to send it there. It ignores everything on the way, but once it is
+  nearly there it will break off for any bacterium it can see, then go back to hunting on
+  its own
 - **+** in the bottom bar opens the recruit menu. Pick a cell, then **click a vessel** — it
   arrives there and has to walk to the fight itself. The energy is only spent once you've
   picked the vessel
@@ -103,7 +104,14 @@ Day 2 has started. The macrophage is in:
 - [x] Recruiting: pay energy, pick a vessel, the cell walks in from there
 - [x] Neutrophils: small, orange, spiky and fast, dead of old age in 90 seconds
 - [x] Winning — clear every wave and the tissue is saved
+Left on the Day 2 list:
+
 - [ ] Click a bacterium to send a cell after that one specifically
+- [ ] A second bacterium colour, and mutation between neighbouring colours
+- [ ] Tuning the numbers until it feels right — the last and best bit
+
+After that, and not part of Day 2:
+
 - [ ] NETs — order a neutrophil to die and take the tissue with it
-- [ ] Waves, reproduction and mutation
+- [ ] Degranulation — poison that hurts bacteria and your own cells alike
 - [ ] Narrow vessels as bottlenecks — recruits queue instead of arriving at once

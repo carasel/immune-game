@@ -118,8 +118,23 @@ export function updateImmuneCell(
   // Told to go somewhere: it goes, and nothing distracts it on the way. Once it
   // arrives the order is forgotten and it picks up hunting again immediately —
   // this same tick, since the code below runs on.
+  //
+  // "Arrived" is generous on purpose. Once the destination is close enough to
+  // see, a pathogen in sight ends the order there and then: you sent it to the
+  // fight, so let it fight rather than stand on an exact spot with a bacterium
+  // under its nose. Far from where it was sent it still ignores everything, so
+  // crossing the map is not a series of distractions.
   if (cell.order) {
-    if (distance(cell.x, cell.y, cell.order.x, cell.order.y) > ARRIVED_WITHIN) {
+    const toDestination = distance(cell.x, cell.y, cell.order.x, cell.order.y)
+    const closeEnough =
+      // Somewhere that isn't a real place counts as arrived, so a bad order can
+      // never walk a cell off into nowhere.
+      !Number.isFinite(toDestination) ||
+      toDestination <= ARRIVED_WITHIN ||
+      (toDestination <= def.visionRange &&
+        nearestPathogenInRange(cell, def.visionRange, ctx.pathogens) !== undefined)
+
+    if (!closeEnough) {
       cell.angle = Math.atan2(cell.order.y - cell.y, cell.order.x - cell.x)
       crawl(cell, def, ctx)
       return

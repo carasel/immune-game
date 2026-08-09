@@ -163,14 +163,22 @@ Every immune cell is autonomous by default:
 ### How the player intervenes
 
 - **Click a cell** to select it.
-- **Click empty ground** → walk there, **ignoring everything on the way**, then **resume
-  wandering** and hunting normally the moment it arrives.
+- **Click empty ground** → walk there, **ignoring everything on the way**, until the
+  destination is close enough to see. From there a pathogen in sight ends the order and the
+  cell goes for it instead. Either way it **resumes wandering** and hunting once the order is
+  done with.
 - **Click a pathogen** → chase and attack *that specific target*, ignoring closer ones.
 
 A move order ignoring bacteria is what makes it an order rather than a suggestion. If a cell
 broke off for anything it passed, a move order would almost never finish while a fight was
 on — which is exactly when you need to reposition. Chasing one specific pathogen is the other
 order, for when what you want is "kill *that* one".
+
+But an order that stays absolute right up to the last pixel is worse: you send a cell into a
+fight and it stands on the spot you clicked with a bacterium under its nose. So the order
+holds while the cell is travelling and lets go once it has essentially arrived. "Within vision
+range of where it was sent" is the line, which needs no new numbers — a cell that can see its
+destination is there as far as the player is concerned.
 
 So a player order is a temporary override, not a permanent mode. Cells always drift back to
 doing their own thing.
@@ -448,15 +456,16 @@ in dead body cells, and that is exactly what happens in a real infection.
   seconds until then.
 - **Losing every body cell is also a loss**, and an immediate one. Otherwise macrophages farm
   the bacteria on dead tissue forever and the level never ends.
-- **A move order is absolute.** An ordered cell ignores bacteria and debris until it arrives,
-  then forgets the order and hunts on its own again. Anything else and a move order would
-  never finish during a fight.
-- *Consequence, found by playing it:* **fiddling loses.** Order everything to the cut once and
-  level 1 is won at 1:52; keep re-ordering them to the same spot every few seconds and it is
-  lost at 2:35, because every fresh order stops them eating. Position your cells, then trust
-  them. That is a defensible thing for the game to teach — but it does mean the punishment for
-  over-managing is severe, and it is worth watching whether that reads as depth or as the
-  controls fighting you.
+- **A move order is absolute while the cell is travelling**, and lets go once the destination
+  is within vision range: from there, a pathogen in sight ends the order. Crossing the map is
+  still one decision rather than a series of distractions, but a cell sent into a fight fights
+  instead of standing on its spot.
+- *Why it works that way:* the first version held the order right to the last pixel, and
+  **fiddling lost you the game**. Ordering everything to the cut once won at 1:52, but
+  re-ordering them to that same spot every few seconds lost at 2:35, because each new order
+  stopped them eating. A 9-year-old poking at his macrophages during a fight would have lost
+  and never known why. With the new rule all three ways of playing it win within two seconds
+  of each other, and leaving the level alone still loses. Both are tests now.
 - **One cell selected at a time**, for now. Box selection can come when there are enough cells
   on screen to need it.
 - **You win by clearing the infection** — all waves arrived, nothing left alive — and the

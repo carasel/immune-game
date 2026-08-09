@@ -340,6 +340,10 @@ export class World {
     const def = findImmuneCell(cell.defId)
     if (!def) return false
 
+    // A destination that isn't a real place would send the cell to NaN and it
+    // would never be seen again. Refuse it here rather than trust every caller.
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return false
+
     // Keep the destination somewhere the cell can actually stand.
     cell.order = {
       x: clamp(x, def.radius, this.bounds.width - def.radius),
