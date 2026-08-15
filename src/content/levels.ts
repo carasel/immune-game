@@ -52,6 +52,16 @@ export interface StartingCellDef {
   /** Which cell, by `id` from content/cells.ts. */
   cell: string
   count: number
+  /**
+   * Where they start, as fractions of the tissue area, exactly like the blobs.
+   * So 0.5, 0.5 is the middle. Leave it out and they are scattered into
+   * whatever open space the tissue has left.
+   *
+   * This is a real level-design tool: a cell that starts far from where the
+   * pathogens get in has to be sent for, and a short-lived one may spend a
+   * chunk of its life just walking.
+   */
+  at?: { x: number; y: number }
 }
 
 /** One batch of pathogens arriving. */
@@ -140,11 +150,13 @@ export const theCut: LevelDef = {
   // Where the bacteria get in.
   entries: [{ id: 'the-cut', label: 'the cut', edge: 'top', along: 0.5, width: 150, depth: 42 }],
 
-  // Two macrophages already patrolling, and one neutrophil that will be dead of
-  // old age before the third wave lands — which is the lesson.
+  // Two macrophages already patrolling wherever there is room, and one
+  // neutrophil right down in the far corner by the narrow vessel. It is the
+  // fastest thing you have and it starts furthest from the trouble, so you have
+  // to notice it and send it — and it only lives 90 seconds, which is the lesson.
   startingCells: [
     { cell: 'macrophage', count: 2 },
-    { cell: 'neutrophil', count: 1 },
+    { cell: 'neutrophil', count: 1, at: { x: 0.12, y: 0.82 } },
   ],
 
   // A couple get in through the cut, then more as the wound stays open. They

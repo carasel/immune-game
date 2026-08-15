@@ -80,6 +80,28 @@ export interface ImmuneCellDef {
    * hours and will want a number here.
    */
   lifespanSeconds?: number
+
+  /**
+   * Degranulation: throwing poison at whatever it can see. Leave it out and the
+   * cell has no such weapon.
+   *
+   * This is real, and it is the reason "granulocyte" is a word: neutrophils are
+   * packed with granules full of defensins, elastase and myeloperoxidase, which
+   * makes bleach. They spray it at what they are attacking, and it damages your
+   * own tissue too. That is not a game-balance compromise, it is the biology.
+   */
+  granules?: {
+    /** Seconds between one granule and the next. */
+    everySeconds: number
+    /** Pixels per second. Fast enough that a bacterium cannot outrun it. */
+    speed: number
+    /** How far it flies before the poison is spent. */
+    range: number
+    /** Damage to a pathogen it hits. Bacteria have health; body cells have 1. */
+    damageToPathogens: number
+    /** Damage to one of your own body cells it hits. The price of using it. */
+    damageToBodyCells: number
+  }
 }
 
 export const macrophage: ImmuneCellDef = {
@@ -146,6 +168,24 @@ export const neutrophil: ImmuneCellDef = {
 
   /** 90 seconds. Everything else about the neutrophil follows from this. */
   lifespanSeconds: 90,
+
+  granules: {
+    everySeconds: 5,
+    speed: 130,
+    /** As far as it can see: it throws at whatever it is looking at. */
+    range: 190,
+    /**
+     * 3 is exactly a blue bacterium's health, so one hit kills one. Tougher
+     * colours will survive a granule, which is the point of colour being
+     * difficulty — this number should not go up when they arrive.
+     */
+    damageToPathogens: 3,
+    /**
+     * A sixth of a body cell, so six stray granules kill one. Firing into your
+     * own tissue costs you, visibly, without one wild shot mattering much.
+     */
+    damageToBodyCells: 1 / 6,
+  },
 }
 
 export const immuneCells: ImmuneCellDef[] = [macrophage, neutrophil]

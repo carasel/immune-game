@@ -3,7 +3,8 @@ import { findImmuneCell, type ImmuneCellDef } from '../content/cells'
 import type { LevelDef, WaveDef } from '../content/levels'
 import { findPathogen, type PathogenDef } from '../content/pathogens'
 import { Economy } from './economy'
-import { clamp, distance, rectContains, type Size } from './geometry'
+import { clamp, distance, rectContains, type Size, type Vec2 } from './geometry'
+import { updateGranule, type Granule } from './granules'
 import {
   killImmuneCell,
   separateImmuneCells,
@@ -34,6 +35,13 @@ export const SECONDS_PER_TICK = 1 / TICKS_PER_SECOND
  */
 export type LossReason = 'tissue' | 'starvation'
 
+/**
+ * How close a click has to be to count as hitting something small. A bacterium
+ * is only 10 across, and a 9-year-old with a mouse should not have to be
+ * pixel-perfect to send a cell after one.
+ */
+const MINIMUM_CLICK_RADIUS = 16
+
 export class World {
   readonly level: LevelDef
   readonly bounds: Size
@@ -46,6 +54,8 @@ export class World {
   readonly bodyCells: BodyCell[]
   readonly pathogens: Pathogen[] = []
   readonly immuneCells: ImmuneCell[] = []
+  /** Poison in flight, thrown by neutrophils. */
+  readonly granules: Granule[] = []
   readonly economy: Economy
 
   tickCount = 0
@@ -68,6 +78,7 @@ export class World {
   private readonly rng: Rng
   private nextPathogenId = 1
   private nextImmuneCellId = 1
+  private nextGranuleId = 1
   private nextWave = 0
   /** Counts down to the next starvation death while energy is at zero. */
   private starveIn = balance.starvationSecondsPerCell
@@ -112,6 +123,7 @@ export class World {
     this.updatePathogens()
     this.economy.addIncome(this.livingBodyCellCount, SECONDS_PER_TICK)
     this.updateImmuneCells()
+    this.updateGranules()
     this.starveImmuneCells()
     this.checkForOutcome()
   }
@@ -346,11 +358,56 @@ export class World {
 
     // Keep the destination somewhere the cell can actually stand.
     cell.order = {
+      kind: 'move',
       x: clamp(x, def.radius, this.bounds.width - def.radius),
       y: clamp(y, def.radius, this.bounds.height - def.radius),
     }
 
     return true
+  }
+
+  /**
+   * Sends the selected cell after one particular pathogen. It goes for that one
+   * and nothing else until it is dead, walking past easier targets on the way —
+   * which is the whole point of being able to pick one.
+   *
+   * Returns false if nothing is selected or that pathogen is already dead.
+   */
+  orderSelectedToChase(pathogenId: number): boolean {
+    const cell = this.selectedImmuneCell
+    if (!cell) return false
+
+    const quarry = this.pathogens.find((pathogen) => pathogen.id === pathogenId)
+    if (!quarry || !quarry.alive) return false
+
+    cell.order = { kind: 'chase', pathogenId }
+    return true
+  }
+
+  /**
+   * The pathogen under a point, if there is one. Bacteria are small, so the
+   * click is given a bit of slack — missing a bacterium you clearly aimed at
+   * is worse than occasionally catching one you didn't.
+   */
+  pathogenAt(x: number, y: number): Pathogen | null {
+    let best: Pathogen | null = null
+    let bestDistance = Number.POSITIVE_INFINITY
+
+    for (const pathogen of this.pathogens) {
+      if (!pathogen.alive) continue
+
+      const def = findPathogen(pathogen.defId)
+      if (!def) continue
+
+      const reach = Math.max(def.radius, MINIMUM_CLICK_RADIUS)
+      const away = distance(pathogen.x, pathogen.y, x, y)
+      if (away > reach || away >= bestDistance) continue
+
+      best = pathogen
+      bestDistance = away
+    }
+
+    return best
   }
 
   /** The cell type waiting to be placed at a vessel, or null. */
@@ -439,26 +496,45 @@ export class World {
         continue
       }
 
+      // Positions in the level are fractions of the area, like the blobs are.
+      const at = garrison.at
+        ? { x: garrison.at.x * this.bounds.width, y: garrison.at.y * this.bounds.height }
+        : undefined
+
       for (let i = 0; i < garrison.count; i++) {
-        this.addImmuneCell(def)
+        this.addImmuneCell(def, at)
       }
     }
   }
 
-  /** Drops a cell into the open channels between the blobs of tissue. */
-  private addImmuneCell(def: ImmuneCellDef): void {
+  /**
+   * Drops a cell into the open channels between the blobs of tissue: at `at` if
+   * the level asked for somewhere particular, otherwise anywhere there is room.
+   */
+  private addImmuneCell(def: ImmuneCellDef, at?: Vec2): void {
     const margin = def.radius + balance.edgeMargin
+    const insideX = (value: number) => clamp(value, margin, this.bounds.width - margin)
+    const insideY = (value: number) => clamp(value, margin, this.bounds.height - margin)
 
-    let x = this.bounds.width / 2
-    let y = this.bounds.height / 2
+    // Hand-placed cells try their spot first; scattered ones start from a guess,
+    // never from the middle of the map.
+    let x = at ? insideX(at.x) : randomRange(this.rng, margin, this.bounds.width - margin)
+    let y = at ? insideY(at.y) : randomRange(this.rng, margin, this.bounds.height - margin)
 
     // If the tissue is too packed to find a clear spot, the last guess gets used
     // anyway. Immune cells can squeeze through tissue, so a tight start is
     // survivable rather than broken.
-    for (let attempt = 0; attempt < 400; attempt++) {
-      x = randomRange(this.rng, margin, this.bounds.width - margin)
-      y = randomRange(this.rng, margin, this.bounds.height - margin)
-      if (this.isRoomForImmuneCell(def, x, y)) break
+    for (let attempt = 0; attempt < 400 && !this.isRoomForImmuneCell(def, x, y); attempt++) {
+      if (at) {
+        // Hand-placed: stay near where the level asked for, searching a little
+        // wider each try, so several cells at one spot end up side by side.
+        const spread = def.radius * (1 + attempt / 10)
+        x = insideX(at.x + randomRange(this.rng, -spread, spread))
+        y = insideY(at.y + randomRange(this.rng, -spread, spread))
+      } else {
+        x = randomRange(this.rng, margin, this.bounds.width - margin)
+        y = randomRange(this.rng, margin, this.bounds.height - margin)
+      }
     }
 
     this.createImmuneCell(def, x, y, this.rng() * Math.PI * 2)
@@ -481,6 +557,8 @@ export class World {
       alive: true,
       ageSeconds: 0,
       wanderIn: randomRange(this.rng, 0, def.wanderChangeSeconds),
+      // Loaded from the moment it arrives.
+      fireIn: 0,
       meal: null,
       order: null,
       diedAtSeconds: null,
@@ -521,6 +599,7 @@ export class World {
       rng: this.rng,
       // Eating things is what pays for the whole immune system.
       onMealFinished: (_cell, meal) => this.economy.credit(meal.reward),
+      onGranuleThrown: (cell, def, angle) => this.throwGranule(cell, def, angle),
     }
 
     for (const cell of this.immuneCells) {
@@ -536,6 +615,50 @@ export class World {
     }
 
     separateImmuneCells(this.immuneCells, this.bounds)
+  }
+
+  /**
+   * A granule leaves the edge of the cell that threw it rather than its middle,
+   * so it doesn't look like it comes out of nowhere.
+   */
+  private throwGranule(cell: ImmuneCell, def: ImmuneCellDef, angle: number): void {
+    if (!def.granules) return
+
+    this.granules.push({
+      id: this.nextGranuleId++,
+      x: cell.x + Math.cos(angle) * def.radius,
+      y: cell.y + Math.sin(angle) * def.radius,
+      angle,
+      speed: def.granules.speed,
+      rangeLeft: def.granules.range,
+      damageToPathogens: def.granules.damageToPathogens,
+      damageToBodyCells: def.granules.damageToBodyCells,
+      alive: true,
+    })
+  }
+
+  private updateGranules(): void {
+    if (this.granules.length === 0) return
+
+    const context = {
+      dt: SECONDS_PER_TICK,
+      bodyCells: this.bodyCells,
+      pathogens: this.pathogens,
+      bounds: this.bounds,
+      onBodyCellDied: () => this.economy.chargeForBodyCellDeath(),
+    }
+
+    for (const granule of this.granules) {
+      if (granule.alive) updateGranule(granule, context)
+    }
+
+    // Spent granules are dropped rather than piling up for the whole level.
+    const spent = this.granules.findIndex((granule) => !granule.alive)
+    if (spent !== -1) {
+      const flying = this.granules.filter((granule) => granule.alive)
+      this.granules.length = 0
+      this.granules.push(...flying)
+    }
   }
 
   /**

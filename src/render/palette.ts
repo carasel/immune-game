@@ -25,6 +25,8 @@ export const palette = {
 
   /** The ring round the cell you have picked up, and where you sent it. */
   selection: 0xeef1fb,
+  /** The ring round a pathogen you have sent a cell after. */
+  attackTarget: 0xff6b6b,
 
   // HUD
   hudPanel: 0x141c36,
@@ -52,9 +54,22 @@ export const pathogenPalette = {
  * One entry per immune cell type, keyed by its `id` in content/cells.ts.
  * Placeholders until they're drawn properly.
  */
-export const immunePalette: Record<string, { fill: number; edge: number; nucleus: number }> = {
+export const immunePalette: Record<
+  string,
+  { fill: number; edge: number; nucleus: number; nucleusAlpha?: number }
+> = {
   macrophage: { fill: 0xffd23f, edge: 0xc98a0b, nucleus: 0x8f5f00 },
-  neutrophil: { fill: 0xffa040, edge: 0xcc6a10, nucleus: 0x8a4300 },
+  /**
+   * Purple nucleus, to match the poison it throws. Drawn nearly solid, because
+   * a purple that gets blended halfway into orange stops looking purple.
+   */
+  neutrophil: { fill: 0xffa040, edge: 0xcc6a10, nucleus: 0x8f2ce0, nucleusAlpha: 0.95 },
+}
+
+/** The granules a neutrophil throws: little purple darts of poison. */
+export const granulePalette = {
+  fill: 0xb45cff,
+  edge: 0x6b1fb0,
 }
 
 export const textColour = {

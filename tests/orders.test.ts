@@ -161,6 +161,7 @@ describe('sending a cell somewhere', () => {
     world.orderSelectedTo(-500, 99999)
 
     expect(cell.order).toEqual({
+      kind: 'move',
       x: macrophage.radius,
       y: bounds.height - macrophage.radius,
     })
@@ -180,3 +181,120 @@ describe('sending a cell somewhere', () => {
     expect(Number.isFinite(cell.y)).toBe(true)
   })
 })
+
+describe('sending a cell after one particular bacterium', () => {
+  it('needs a cell selected, and a bacterium that is actually alive', () => {
+    const world = worldWith(oneMacrophage)
+    const bacterium = placeBacterium(world, 480, 300)
+
+    // Nothing selected yet.
+    expect(world.orderSelectedToChase(bacterium.id)).toBe(false)
+
+    const cell = firstOfType(world, 'macrophage')
+    world.selectImmuneCellAt(cell.x, cell.y)
+
+    expect(world.orderSelectedToChase(9999)).toBe(false)
+    expect(world.orderSelectedToChase(bacterium.id)).toBe(true)
+    expect(cell.order).toEqual({ kind: 'chase', pathogenId: bacterium.id })
+
+    bacterium.alive = false
+    expect(world.orderSelectedToChase(bacterium.id)).toBe(false)
+  })
+
+  it('walks past a much closer bacterium to get the one it was sent after', () => {
+    const world = worldWith(oneMacrophage)
+    const cell = firstOfType(world, 'macrophage')
+
+    // The easy one is right next to it; the ordered one is far across the map.
+    const easy = placeBacterium(world, cell.x + 45, cell.y)
+    const wanted = placeBacterium(world, Math.min(cell.x + 400, bounds.width - 30), cell.y)
+
+    world.selectImmuneCellAt(cell.x, cell.y)
+    world.orderSelectedToChase(wanted.id)
+
+    const caught = runUntil(world, 240, () => !wanted.alive)
+
+    expect(caught).not.toBeNull()
+    expect(easy.alive).toBe(true)
+  })
+
+  it('eats it, and the order is done', () => {
+    const world = worldWith(oneMacrophage)
+    const cell = firstOfType(world, 'macrophage')
+    const wanted = placeBacterium(world, cell.x + 120, cell.y)
+
+    world.selectImmuneCellAt(cell.x, cell.y)
+    world.orderSelectedToChase(wanted.id)
+
+    runUntil(world, 240, () => !wanted.alive)
+
+    expect(cell.order).toBeNull()
+    expect(cell.meal?.kind).toBe('pathogen')
+  })
+
+  it('gives up and goes back to normal if something else kills its target', () => {
+    const world = worldWith(oneMacrophage)
+    const cell = firstOfType(world, 'macrophage')
+    const wanted = placeBacterium(world, Math.min(cell.x + 400, bounds.width - 30), cell.y)
+
+    world.selectImmuneCellAt(cell.x, cell.y)
+    world.orderSelectedToChase(wanted.id)
+    run(world, 3)
+
+    // Someone else gets there first.
+    wanted.alive = false
+    world.step()
+
+    expect(cell.order).toBeNull()
+
+    // And it is hunting on its own again: a new bacterium beside it gets eaten.
+    const nearby = placeBacterium(world, cell.x + 40, cell.y)
+    const ate = runUntil(world, 60, () => !nearby.alive)
+    expect(ate).not.toBeNull()
+  })
+
+  it('chases a bacterium that is running away', () => {
+    const world = worldWith([{ cell: 'neutrophil', count: 1 }])
+    const cell = firstOfType(world, 'neutrophil')
+    const runner = placeBacterium(world, cell.x + 150, cell.y)
+
+    world.selectImmuneCellAt(cell.x, cell.y)
+    world.orderSelectedToChase(runner.id)
+
+    // It keeps moving, and the neutrophil is faster, so it should still catch it.
+    const caught = runUntil(world, 240, () => {
+      runner.x = Math.min(runner.x + 0.15, bounds.width - 20)
+      return !runner.alive
+    })
+
+    expect(caught).not.toBeNull()
+  })
+})
+
+describe('clicking about the place', () => {
+  it('finds a bacterium under the click, with a bit of slack for small ones', () => {
+    const world = worldWith([])
+    const bacterium = placeBacterium(world, 480, 300)
+
+    expect(world.pathogenAt(480, 300)).toBe(bacterium)
+    expect(world.pathogenAt(492, 300)).toBe(bacterium) // near miss still counts
+    expect(world.pathogenAt(560, 300)).toBeNull()
+  })
+
+  it('ignores bacteria that are already dead', () => {
+    const world = worldWith([])
+    const bacterium = placeBacterium(world, 480, 300)
+    bacterium.alive = false
+
+    expect(world.pathogenAt(480, 300)).toBeNull()
+  })
+
+  it('picks the nearest when two are close together', () => {
+    const world = worldWith([])
+    placeBacterium(world, 480, 300)
+    const nearer = placeBacterium(world, 500, 300)
+
+    expect(world.pathogenAt(498, 300)).toBe(nearer)
+  })
+})
+

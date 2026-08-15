@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { macrophage, neutrophil } from '../src/content/cells'
 import { blueBacteria } from '../src/content/pathogens'
-import { theCut } from '../src/content/levels'
+import { theCut, TISSUE_VIEW } from '../src/content/levels'
+import { World } from '../src/sim/world'
 import { firstOfType, leaveDebris, placeBacterium, run, runUntil, worldWith } from './helpers'
 
 
@@ -41,6 +42,9 @@ describe('what makes a neutrophil different', () => {
   it('is stuck doing nothing else for as long as it takes', () => {
     const world = worldWith(oneNeutrophil)
     const cell = firstOfType(world, 'neutrophil')
+    // Hold its fire: left alone it would shoot this one rather than eat it, and
+    // this test is about what digesting costs it.
+    cell.fireIn = Number.MAX_SAFE_INTEGER
     placeBacterium(world, cell.x + 40, cell.y)
 
     runUntil(world, 20, () => cell.meal !== null)
@@ -58,6 +62,8 @@ describe('what makes a neutrophil different', () => {
   it('eats bacteria, but earns less than a macrophage for it', () => {
     const world = worldWith(oneNeutrophil)
     const cell = firstOfType(world, 'neutrophil')
+    // Hold its fire, so it closes and eats rather than shooting from range.
+    cell.fireIn = Number.MAX_SAFE_INTEGER
     const bacterium = placeBacterium(world, cell.x + 40, cell.y)
 
     runUntil(world, 20, () => cell.meal !== null)
@@ -89,6 +95,31 @@ describe('level 1', () => {
 
     expect(world.immuneCellCounts.get('macrophage')).toBe(2)
     expect(world.immuneCellCounts.get('neutrophil')).toBe(1)
+  })
+
+  it('starts its neutrophil further from the wound than either macrophage', () => {
+    const world = new World(theCut, TISSUE_VIEW)
+    const cut = world.entries[0]
+    const fromCut = (cell: { x: number; y: number }) =>
+      Math.hypot(cell.x - cut.innerPoint.x, cell.y - cut.innerPoint.y)
+
+    const neutrophil = world.immuneCells.find((cell) => cell.defId === 'neutrophil')!
+    const macrophages = world.immuneCells.filter((cell) => cell.defId === 'macrophage')
+
+    for (const macrophage of macrophages) {
+      expect(fromCut(neutrophil)).toBeGreaterThan(fromCut(macrophage))
+    }
+  })
+
+  it('puts a hand-placed cell where the level asked for it', () => {
+    const world = worldWith([{ cell: 'neutrophil', count: 1, at: { x: 0.5, y: 0.5 } }])
+    const cell = firstOfType(world, 'neutrophil')
+
+    // Near enough: it looks for open space around the spot rather than landing
+    // on top of a body cell.
+    expect(Math.hypot(cell.x - TISSUE_VIEW.width / 2, cell.y - TISSUE_VIEW.height / 2)).toBeLessThan(
+      120,
+    )
   })
 
   it('puts its starting cells in open space, not inside the tissue', () => {

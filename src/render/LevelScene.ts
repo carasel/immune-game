@@ -9,7 +9,7 @@ import type { EdgeRegion } from '../sim/openings'
 import type { BodyCell } from '../sim/tissue'
 import { TICKS_PER_SECOND, World } from '../sim/world'
 import { HudScene } from './HudScene'
-import { font, immunePalette, palette, pathogenPalette, textColour } from './palette'
+import { font, granulePalette, immunePalette, palette, pathogenPalette, textColour } from './palette'
 import { cellOutline, insideCell } from './shapes'
 
 const MS_PER_TICK = 1000 / TICKS_PER_SECOND
@@ -20,10 +20,15 @@ const MAX_TICKS_PER_FRAME = 12
 /** How long a dead immune cell takes to wither away, in level seconds. */
 const DEATH_FADE_SECONDS = 1.2
 
+/** How big a granule is drawn. Its hit radius is smaller, over in the sim. */
+const GRANULE_LENGTH = 7
+const GRANULE_WIDTH = 4
+
 export class LevelScene extends Phaser.Scene {
   private world!: World
   private tissueGraphics!: Phaser.GameObjects.Graphics
   private pathogenGraphics!: Phaser.GameObjects.Graphics
+  private granuleGraphics!: Phaser.GameObjects.Graphics
   private immuneGraphics!: Phaser.GameObjects.Graphics
   private highlightGraphics!: Phaser.GameObjects.Graphics
 
@@ -55,6 +60,9 @@ export class LevelScene extends Phaser.Scene {
 
     // Above the tissue, so you can see bacteria sitting on a cell they're eating.
     this.pathogenGraphics = this.add.graphics()
+
+    // Poison in flight, above the bacteria it is aimed at.
+    this.granuleGraphics = this.add.graphics()
 
     // Above the bacteria, so a swallowed one is drawn inside its macrophage.
     this.immuneGraphics = this.add.graphics()
@@ -96,8 +104,45 @@ export class LevelScene extends Phaser.Scene {
 
     this.drawTissue()
     this.drawPathogens()
+    this.drawGranules()
     this.drawImmuneCells()
     this.drawRecruitHighlights(time)
+  }
+
+  /**
+   * Granules: little purple darts, pointing the way they are flying. Sharp and
+   * nasty on purpose — they are poison, and they do not care whose cell they
+   * land on.
+   */
+  private drawGranules(): void {
+    const graphics = this.granuleGraphics
+    graphics.clear()
+
+    for (const granule of this.world.granules) {
+      if (!granule.alive) continue
+
+      const forwardX = Math.cos(granule.angle)
+      const forwardY = Math.sin(granule.angle)
+
+      // A dart: a point out front, and two corners trailing behind it.
+      const points: Vec2[] = [
+        { x: granule.x + forwardX * GRANULE_LENGTH, y: granule.y + forwardY * GRANULE_LENGTH },
+        {
+          x: granule.x - forwardX * GRANULE_LENGTH * 0.6 - forwardY * GRANULE_WIDTH,
+          y: granule.y - forwardY * GRANULE_LENGTH * 0.6 + forwardX * GRANULE_WIDTH,
+        },
+        {
+          x: granule.x - forwardX * GRANULE_LENGTH * 0.6 + forwardY * GRANULE_WIDTH,
+          y: granule.y - forwardY * GRANULE_LENGTH * 0.6 - forwardX * GRANULE_WIDTH,
+        },
+      ]
+
+      graphics.fillStyle(granulePalette.fill, 1)
+      graphics.fillPoints(points, true)
+
+      graphics.lineStyle(1, granulePalette.edge, 1)
+      graphics.strokePoints(points, true)
+    }
   }
 
   /**
@@ -154,6 +199,11 @@ export class LevelScene extends Phaser.Scene {
       }
 
       if (this.world.selectImmuneCellAt(pointer.worldX, pointer.worldY)) return
+
+      // Clicking a bacterium sends the cell after that one specifically;
+      // clicking the ground just sends it there.
+      const quarry = this.world.pathogenAt(pointer.worldX, pointer.worldY)
+      if (quarry && this.world.orderSelectedToChase(quarry.id)) return
 
       this.world.orderSelectedTo(pointer.worldX, pointer.worldY)
     })
@@ -306,13 +356,29 @@ export class LevelScene extends Phaser.Scene {
     // Orders first, underneath everything, so a cell is never hidden by its own
     // destination marker.
     for (const cell of this.world.immuneCells) {
-      if (!cell.alive || !cell.order) continue
+      const order = cell.order
+      if (!cell.alive || !order) continue
 
-      graphics.lineStyle(1, palette.selection, 0.3)
-      graphics.lineBetween(cell.x, cell.y, cell.order.x, cell.order.y)
+      if (order.kind === 'move') {
+        graphics.lineStyle(1, palette.selection, 0.3)
+        graphics.lineBetween(cell.x, cell.y, order.x, order.y)
 
-      graphics.lineStyle(2, palette.selection, 0.7)
-      graphics.strokeCircle(cell.order.x, cell.order.y, 6)
+        graphics.lineStyle(2, palette.selection, 0.7)
+        graphics.strokeCircle(order.x, order.y, 6)
+        continue
+      }
+
+      // Chasing: ring the target instead, in a colour that means "kill this".
+      const quarry = this.world.pathogens.find(
+        (pathogen) => pathogen.id === order.pathogenId && pathogen.alive,
+      )
+      if (!quarry) continue
+
+      graphics.lineStyle(1, palette.attackTarget, 0.35)
+      graphics.lineBetween(cell.x, cell.y, quarry.x, quarry.y)
+
+      graphics.lineStyle(2, palette.attackTarget, 0.85)
+      graphics.strokeCircle(quarry.x, quarry.y, 16)
     }
 
     for (const cell of this.world.immuneCells) {
@@ -347,7 +413,7 @@ export class LevelScene extends Phaser.Scene {
 
       // The nucleus sits forward of centre, out of the way of the belly.
       const nucleus = insideCell(cell.x, cell.y, cell.angle, def, -0.22)
-      graphics.fillStyle(colour.nucleus, 0.5 * fade)
+      graphics.fillStyle(colour.nucleus, (colour.nucleusAlpha ?? 0.5) * fade)
       graphics.fillCircle(nucleus.x, nucleus.y, def.radius * 0.28)
 
       if (!cell.meal) continue

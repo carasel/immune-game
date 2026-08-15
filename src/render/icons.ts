@@ -85,7 +85,7 @@ export function drawImmuneCellIcon(
   graphics.strokePoints(outline, true)
 
   const nucleus = insideCell(centreX, y, 0, shape, -0.22)
-  graphics.fillStyle(colour.nucleus, 0.5)
+  graphics.fillStyle(colour.nucleus, colour.nucleusAlpha ?? 0.5)
   graphics.fillCircle(nucleus.x, nucleus.y, size * 0.28)
 }
 

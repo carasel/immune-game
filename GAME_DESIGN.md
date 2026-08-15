@@ -461,8 +461,8 @@ in dead body cells, and that is exactly what happens in a real infection.
   still one decision rather than a series of distractions, but a cell sent into a fight fights
   instead of standing on its spot.
 - *Why it works that way:* the first version held the order right to the last pixel, and
-  **fiddling lost you the game**. Ordering everything to the cut once won at 1:52, but
-  re-ordering them to that same spot every few seconds lost at 2:35, because each new order
+  **fiddling lost you the game**. Ordering everything to the cut once won the level, but
+  re-ordering them to that same spot every few seconds lost it, because each new order
   stopped them eating. A 9-year-old poking at his macrophages during a fight would have lost
   and never known why. With the new rule all three ways of playing it win within two seconds
   of each other, and leaving the level alone still loses. Both are tests now.
@@ -472,9 +472,16 @@ in dead body cells, and that is exactly what happens in a real infection.
   banner says how much tissue you saved. Losing is checked first, because tissue with nothing
   alive left in it has not been saved by the infection also being over.
 - **Level 1 is winnable on the cells you start with, but only if you play it.** Send all three
-  to the cut at the start and they meet each wave as it arrives: won at 1:52 with 48 of 50
-  body cells, nothing recruited. Left alone they lose the tissue at 3:44. That gap between the
+  to the cut at the start and they meet each wave as it arrives: won at 2:14 with 43 of 50
+  body cells, nothing recruited. Left alone the tissue is gone by 1:56. That gap between the
   two is the level doing its job.
+- **Starting cells can be placed by hand** (`at` in a level's `startingCells`, as fractions of
+  the area, like the blobs). Level 1 puts its neutrophil in the far corner by the narrow
+  vessel, 562px from the wound against the macrophages' 280 and 402. The fastest cell starts
+  furthest from the trouble, so you have to notice it and send it, and it spends a fifth of
+  its 90-second life just walking. Moving it there cost about 4 body cells in a good game and
+  cut the do-nothing loss from 3:44 to 1:56 — early kills matter enormously when the thing
+  you are killing doubles every 20 seconds.
 - **Camping the wound is the strong move**, because bacteria are at their most killable in the
   second they arrive, before they have spread out and started dividing. Worth knowing when
   designing later levels: an entry point the player can physically cover is a much softer
@@ -504,6 +511,21 @@ in dead body cells, and that is exactly what happens in a real infection.
   the thing a neutrophil is worst at, because its real weapons are still to come.
 - Dead neutrophils **fade away** rather than leaving a husk. Pus really is mostly dead
   neutrophils and macrophages really do clear them up, so this is worth revisiting.
+- **Degranulation.** A neutrophil throws a purple granule at the nearest thing it can see,
+  one every 5 seconds, out to its vision range. It kills a blue bacterium outright and hurts
+  one of your own body cells by a sixth — six strays and you have killed it yourself, and it
+  costs you the death charge like any other. Aim is not the point; being near the fight is.
+- **It is a reflex, not an action:** granules keep coming while the cell is digesting, under
+  orders, anything. That is what makes a neutrophil's four slow seconds of eating bearable,
+  and it is why the cell is allowed to be bad at eating.
+- **Poisoning something pays nothing.** Only eating pays. So degranulation kills without
+  feeding you, which keeps the macrophage the income engine even when the neutrophil is doing
+  the killing.
+- *Measured on level 1:* a neutrophil throws about 9 granules in its 90-second life, kills
+  4 or 5 bacteria with them, and hits your own tissue twice — a third of one body cell. Adding
+  it made the level faster to win and cheaper in tissue (2:14 and 43 cells → 1:56 and 45).
+  The friendly fire is currently a warning shot rather than a real cost; `everySeconds` is the
+  dial if it should bite harder.
 - Level 1 starts with **2 macrophages and 1 neutrophil**, and the neutrophil dies of old age
   before the third wave — which is how you learn what it is.
 - **Starvation takes whoever has least life left**, so neutrophils go before macrophages, and

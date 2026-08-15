@@ -22,6 +22,18 @@ const DEBRIS_REACH = 0.5
 /** How close a cell has to get to where it was sent before it counts as arrived. */
 const ARRIVED_WITHIN = 2
 
+/**
+ * What the player has told a cell to do. A cell has one of these at a time, or
+ * none, which is most of the time — orders are a temporary override, never a
+ * mode the cell stays in.
+ *
+ * `move` walks to a place. `chase` goes after one specific pathogen and keeps
+ * going until it is dead, however many easier ones it passes on the way.
+ */
+export type Order =
+  | { kind: 'move'; x: number; y: number }
+  | { kind: 'chase'; pathogenId: number }
+
 /** What an immune cell is currently busy swallowing. */
 export interface Meal {
   kind: 'pathogen' | 'debris'
@@ -47,14 +59,19 @@ export interface ImmuneCell {
   ageSeconds: number
   /** Seconds until it picks a new direction to wander in. */
   wanderIn: number
+  /**
+   * Seconds until it can throw another granule. Sits at 0 when it is loaded and
+   * waiting for something to come into range. Unused by cells with no granules.
+   */
+  fireIn: number
   /** Set while it is eating. It stops moving and hunting until it's done. */
   meal: Meal | null
   /**
-   * Where the player has sent it. It walks there ignoring everything, then
-   * forgets the order and goes back to hunting on its own. Null when it is
-   * doing its own thing, which is most of the time.
+   * What the player has told it to do, or null when it is doing its own thing,
+   * which is most of the time. Either way it goes back to hunting on its own
+   * the moment the order is done with.
    */
-  order: Vec2 | null
+  order: Order | null
   /**
    * When it died, in level seconds, or null while it is alive. Dead cells stay
    * in the list so the player can see them go — a cell that vanishes between
@@ -74,6 +91,8 @@ export interface ImmuneCellContext {
   rng: Rng
   /** Called when a meal finishes, so the energy can be paid out. */
   onMealFinished: (cell: ImmuneCell, meal: Meal) => void
+  /** Called when a cell throws a granule, with the direction it threw it. */
+  onGranuleThrown: (cell: ImmuneCell, def: ImmuneCellDef, angle: number) => void
 }
 
 /**
@@ -104,6 +123,11 @@ export function updateImmuneCell(
     return
   }
 
+  // Degranulation is a reflex, not something the cell decides to do, so it
+  // happens whatever else is going on — mid-meal, mid-order, anything. That is
+  // what makes a neutrophil's four slow seconds of digesting bearable.
+  throwGranules(cell, def, ctx)
+
   if (cell.meal) {
     cell.meal.secondsLeft -= ctx.dt
     if (cell.meal.secondsLeft > 0) return
@@ -115,6 +139,34 @@ export function updateImmuneCell(
     return
   }
 
+  const order = cell.order
+
+  // Sent after one particular pathogen: it goes for that one and nothing else,
+  // however many easier ones it walks past, until either it eats it or someone
+  // else does. Then the order is done and it hunts normally again.
+  if (order?.kind === 'chase') {
+    const quarry = ctx.pathogens.find(
+      (pathogen) => pathogen.id === order.pathogenId && pathogen.alive,
+    )
+
+    if (quarry) {
+      cell.angle = Math.atan2(quarry.y - cell.y, quarry.x - cell.x)
+
+      if (withinReach(cell, def, quarry)) {
+        swallow(cell, def, quarry)
+        cell.order = null
+        return
+      }
+
+      crawl(cell, def, ctx)
+      return
+    }
+
+    // It died on the way — eaten by someone else, most likely.
+    cell.order = null
+    cell.wanderIn = def.wanderChangeSeconds
+  }
+
   // Told to go somewhere: it goes, and nothing distracts it on the way. Once it
   // arrives the order is forgotten and it picks up hunting again immediately —
   // this same tick, since the code below runs on.
@@ -124,8 +176,8 @@ export function updateImmuneCell(
   // fight, so let it fight rather than stand on an exact spot with a bacterium
   // under its nose. Far from where it was sent it still ignores everything, so
   // crossing the map is not a series of distractions.
-  if (cell.order) {
-    const toDestination = distance(cell.x, cell.y, cell.order.x, cell.order.y)
+  if (order?.kind === 'move') {
+    const toDestination = distance(cell.x, cell.y, order.x, order.y)
     const closeEnough =
       // Somewhere that isn't a real place counts as arrived, so a bad order can
       // never walk a cell off into nowhere.
@@ -135,7 +187,7 @@ export function updateImmuneCell(
         nearestPathogenInRange(cell, def.visionRange, ctx.pathogens) !== undefined)
 
     if (!closeEnough) {
-      cell.angle = Math.atan2(cell.order.y - cell.y, cell.order.x - cell.x)
+      cell.angle = Math.atan2(order.y - cell.y, order.x - cell.x)
       crawl(cell, def, ctx)
       return
     }
@@ -149,20 +201,8 @@ export function updateImmuneCell(
   if (prey) {
     cell.angle = Math.atan2(prey.y - cell.y, prey.x - cell.x)
 
-    const preyDef = findPathogen(prey.defId)
-    const reach = def.radius * PATHOGEN_REACH + (preyDef?.radius ?? 0)
-
-    if (distance(cell.x, cell.y, prey.x, prey.y) <= reach) {
-      // Swallowed whole. It is inside the macrophage now, so it stops being a
-      // problem immediately even though digesting it takes a while.
-      prey.alive = false
-      cell.meal = {
-        kind: 'pathogen',
-        pathogenDefId: prey.defId,
-        secondsLeft: def.engulfPathogenSeconds,
-        totalSeconds: def.engulfPathogenSeconds,
-        reward: def.energyPerPathogen,
-      }
+    if (withinReach(cell, def, prey)) {
+      swallow(cell, def, prey)
       return
     }
 
@@ -204,6 +244,56 @@ export function updateImmuneCell(
   }
 
   crawl(cell, def, ctx)
+}
+
+/**
+ * Throws a granule at the nearest pathogen in range, if the cell has granules
+ * and one is ready.
+ *
+ * With nothing to aim at, the timer sits at zero rather than counting down into
+ * the negatives: a neutrophil that has been waiting around is loaded, and fires
+ * the moment something comes into view.
+ */
+function throwGranules(cell: ImmuneCell, def: ImmuneCellDef, ctx: ImmuneCellContext): void {
+  if (!def.granules) return
+
+  if (cell.fireIn > 0) {
+    cell.fireIn -= ctx.dt
+    return
+  }
+
+  const target = nearestPathogenInRange(cell, def.granules.range, ctx.pathogens)
+  if (!target) {
+    cell.fireIn = 0
+    return
+  }
+
+  cell.fireIn = def.granules.everySeconds
+  ctx.onGranuleThrown(cell, def, Math.atan2(target.y - cell.y, target.x - cell.x))
+}
+
+/** Is the cell close enough to swallow this pathogen? */
+function withinReach(cell: ImmuneCell, def: ImmuneCellDef, prey: Pathogen): boolean {
+  const preyDef = findPathogen(prey.defId)
+  const reach = def.radius * PATHOGEN_REACH + (preyDef?.radius ?? 0)
+
+  return distance(cell.x, cell.y, prey.x, prey.y) <= reach
+}
+
+/**
+ * Swallowed whole. It is inside the cell now, so it stops being a problem
+ * immediately even though digesting it takes a while.
+ */
+function swallow(cell: ImmuneCell, def: ImmuneCellDef, prey: Pathogen): void {
+  prey.alive = false
+
+  cell.meal = {
+    kind: 'pathogen',
+    pathogenDefId: prey.defId,
+    secondsLeft: def.engulfPathogenSeconds,
+    totalSeconds: def.engulfPathogenSeconds,
+    reward: def.energyPerPathogen,
+  }
 }
 
 /**
