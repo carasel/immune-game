@@ -90,6 +90,29 @@ export interface ImmuneCellDef {
    * makes bleach. They spray it at what they are attacking, and it damages your
    * own tissue too. That is not a game-balance compromise, it is the biology.
    */
+  /**
+   * The NET: the cell tears itself apart and throws its own DNA out as a sticky
+   * web, studded with the poison from its granules. Bacteria caught in it are
+   * held still and killed. So is a good deal of whatever tissue it lands on.
+   *
+   * This is real, it is called NETosis, and the cell does not survive it. Leave
+   * it out and the cell has no such last resort.
+   */
+  net?: {
+    /** How far the web reaches from the cell that made it. */
+    radius: number
+    /** How long it stays sticky before it breaks down. */
+    durationSeconds: number
+    /** Damage a second to any pathogen held in it. */
+    damagePerSecondToPathogens: number
+    /**
+     * Damage to each of your body cells under it, once, as the web lands.
+     * A one-off rather than per second — the web smothers what it falls on and
+     * then it is done, instead of dissolving the tissue while it sits there.
+     */
+    damageToBodyCells: number
+  }
+
   granules?: {
     /** Seconds between one granule and the next. */
     everySeconds: number
@@ -168,6 +191,20 @@ export const neutrophil: ImmuneCellDef = {
 
   /** 90 seconds. Everything else about the neutrophil follows from this. */
   lifespanSeconds: 90,
+
+  net: {
+    /** About three body cells across. Enough to cover a cluster at the wound. */
+    radius: 90,
+    durationSeconds: 8,
+    /** A blue bacterium has 3 health, so it dies in about two seconds in there. */
+    damagePerSecondToPathogens: 1.5,
+    /**
+     * Four fifths of a body cell, once. A healthy cell survives on a sliver;
+     * one that has already been chewed on dies. So a NET over your own tissue
+     * is not instantly fatal to it, but it does leave the place in ruins.
+     */
+    damageToBodyCells: 0.8,
+  },
 
   granules: {
     everySeconds: 5,

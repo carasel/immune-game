@@ -72,6 +72,16 @@ export const granulePalette = {
   edge: 0x6b1fb0,
 }
 
+/**
+ * A NET: the web of DNA a neutrophil throws out as it dies. Pale and stringy,
+ * with the purple of its granules still in it.
+ */
+export const netPalette = {
+  fill: 0xd9c6ff,
+  strand: 0xe9dcff,
+  poison: 0xb45cff,
+}
+
 export const textColour = {
   bright: '#eef1fb',
   dim: '#8d97bd',

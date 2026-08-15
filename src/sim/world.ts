@@ -5,6 +5,7 @@ import { findPathogen, type PathogenDef } from '../content/pathogens'
 import { Economy } from './economy'
 import { clamp, distance, rectContains, type Size, type Vec2 } from './geometry'
 import { updateGranule, type Granule } from './granules'
+import { bodyCellsUnder, updateNet, type Net } from './nets'
 import {
   killImmuneCell,
   separateImmuneCells,
@@ -56,6 +57,8 @@ export class World {
   readonly immuneCells: ImmuneCell[] = []
   /** Poison in flight, thrown by neutrophils. */
   readonly granules: Granule[] = []
+  /** Webs on the ground, left by neutrophils that tore themselves apart. */
+  readonly nets: Net[] = []
   readonly economy: Economy
 
   tickCount = 0
@@ -79,6 +82,7 @@ export class World {
   private nextPathogenId = 1
   private nextImmuneCellId = 1
   private nextGranuleId = 1
+  private nextNetId = 1
   private nextWave = 0
   /** Counts down to the next starvation death while energy is at zero. */
   private starveIn = balance.starvationSecondsPerCell
@@ -120,6 +124,8 @@ export class World {
   step(): void {
     this.tickCount++
     this.releaseDueWaves()
+    // Before the pathogens, so anything held in a web is held this tick too.
+    this.updateNets()
     this.updatePathogens()
     this.economy.addIncome(this.livingBodyCellCount, SECONDS_PER_TICK)
     this.updateImmuneCells()
@@ -313,6 +319,13 @@ export class World {
    * as "they clicked the ground".
    */
   selectImmuneCellAt(x: number, y: number): ImmuneCell | null {
+    const cell = this.immuneCellAt(x, y)
+    if (cell) this.selectedId = cell.id
+    return cell
+  }
+
+  /** The immune cell under a point, without selecting it. */
+  private immuneCellAt(x: number, y: number): ImmuneCell | null {
     let best: ImmuneCell | null = null
     let bestDistance = Number.POSITIVE_INFINITY
 
@@ -330,7 +343,6 @@ export class World {
       bestDistance = away
     }
 
-    if (best) this.selectedId = best.id
     return best
   }
 
@@ -618,6 +630,68 @@ export class World {
   }
 
   /**
+   * Orders one cell to tear itself apart and throw a web out over everything
+   * around it. The cell dies — that is not a side effect, it is how a NET is
+   * made — and the tissue underneath takes the damage there and then.
+   *
+   * Returns false if there is no such living cell, or it is not the sort of
+   * cell that can do this. Macrophages cannot.
+   */
+  formNetFrom(cellId: number): boolean {
+    const cell = this.immuneCells.find((candidate) => candidate.id === cellId)
+    if (!cell || !cell.alive) return false
+
+    const def = findImmuneCell(cell.defId)
+    if (!def?.net) return false
+
+    const net: Net = {
+      id: this.nextNetId++,
+      x: cell.x,
+      y: cell.y,
+      radius: def.net.radius,
+      secondsLeft: def.net.durationSeconds,
+      totalSeconds: def.net.durationSeconds,
+      damagePerSecondToPathogens: def.net.damagePerSecondToPathogens,
+      alive: true,
+    }
+
+    // What the web lands on, it smothers — once, as it falls.
+    for (const bodyCell of bodyCellsUnder(net, this.bodyCells)) {
+      bodyCell.health -= def.net.damageToBodyCells
+      if (bodyCell.health > 0) continue
+
+      bodyCell.health = 0
+      bodyCell.alive = false
+      bodyCell.debris = true
+      this.economy.chargeForBodyCellDeath()
+    }
+
+    this.nets.push(net)
+    killImmuneCell(cell, this.elapsedSeconds)
+
+    // A cell that has just killed itself should not stay selected.
+    if (this.selectedId === cell.id) this.selectedId = null
+
+    return true
+  }
+
+  private updateNets(): void {
+    if (this.nets.length === 0) return
+
+    const context = { dt: SECONDS_PER_TICK, pathogens: this.pathogens }
+
+    for (const net of this.nets) {
+      if (net.alive) updateNet(net, context)
+    }
+
+    if (this.nets.some((net) => !net.alive)) {
+      const standing = this.nets.filter((net) => net.alive)
+      this.nets.length = 0
+      this.nets.push(...standing)
+    }
+  }
+
+  /**
    * A granule leaves the edge of the cell that threw it rather than its middle,
    * so it doesn't look like it comes out of nowhere.
    */
@@ -728,6 +802,7 @@ export class World {
       bodyCells: this.bodyCells,
       bounds: this.bounds,
       rng: this.rng,
+      nets: this.nets,
       onBodyCellDied: () => this.economy.chargeForBodyCellDeath(),
     }
 

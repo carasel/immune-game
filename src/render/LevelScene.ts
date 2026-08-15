@@ -9,7 +9,15 @@ import type { EdgeRegion } from '../sim/openings'
 import type { BodyCell } from '../sim/tissue'
 import { TICKS_PER_SECOND, World } from '../sim/world'
 import { HudScene } from './HudScene'
-import { font, granulePalette, immunePalette, palette, pathogenPalette, textColour } from './palette'
+import {
+  font,
+  granulePalette,
+  immunePalette,
+  netPalette,
+  palette,
+  pathogenPalette,
+  textColour,
+} from './palette'
 import { cellOutline, insideCell } from './shapes'
 
 const MS_PER_TICK = 1000 / TICKS_PER_SECOND
@@ -20,6 +28,13 @@ const MAX_TICKS_PER_FRAME = 12
 /** How long a dead immune cell takes to wither away, in level seconds. */
 const DEATH_FADE_SECONDS = 1.2
 
+/**
+ * How close together two clicks on the same cell have to be to mean "set off
+ * its NET". Short on purpose: this control kills one of your own cells, so a
+ * hesitant double-click should select it twice and do nothing else.
+ */
+const DOUBLE_CLICK_MS = 320
+
 /** How big a granule is drawn. Its hit radius is smaller, over in the sim. */
 const GRANULE_LENGTH = 7
 const GRANULE_WIDTH = 4
@@ -28,6 +43,7 @@ export class LevelScene extends Phaser.Scene {
   private world!: World
   private tissueGraphics!: Phaser.GameObjects.Graphics
   private pathogenGraphics!: Phaser.GameObjects.Graphics
+  private netGraphics!: Phaser.GameObjects.Graphics
   private granuleGraphics!: Phaser.GameObjects.Graphics
   private immuneGraphics!: Phaser.GameObjects.Graphics
   private highlightGraphics!: Phaser.GameObjects.Graphics
@@ -39,6 +55,10 @@ export class LevelScene extends Phaser.Scene {
   private outlines = new Map<number, Vec2[]>()
 
   private leftoverMs = 0
+
+  /** For spotting a double-click: which cell was clicked last, and when. */
+  private lastClickedCellId: number | null = null
+  private lastClickedAt = Number.NEGATIVE_INFINITY
 
   constructor() {
     super('level')
@@ -57,6 +77,10 @@ export class LevelScene extends Phaser.Scene {
     for (const cell of this.world.bodyCells) {
       this.outlines.set(cell.id, buildOutline(cell))
     }
+
+    // Webs lie on the ground, under everything caught in them — so a bacterium
+    // stuck in one is still clearly a bacterium you can click on.
+    this.netGraphics = this.add.graphics()
 
     // Above the tissue, so you can see bacteria sitting on a cell they're eating.
     this.pathogenGraphics = this.add.graphics()
@@ -103,10 +127,60 @@ export class LevelScene extends Phaser.Scene {
     }
 
     this.drawTissue()
+    this.drawNets()
     this.drawPathogens()
     this.drawGranules()
     this.drawImmuneCells()
     this.drawRecruitHighlights(time)
+  }
+
+  /**
+   * A NET: a pale, stringy web with the purple of the granules still in it. It
+   * thins out as it breaks down, so you can see how long you have left.
+   *
+   * The strands are laid out from the net's own id, so a given web looks the
+   * same every frame instead of shimmering.
+   */
+  private drawNets(): void {
+    const graphics = this.netGraphics
+    graphics.clear()
+
+    for (const net of this.world.nets) {
+      if (!net.alive) continue
+
+      const left = net.secondsLeft / net.totalSeconds
+
+      graphics.fillStyle(netPalette.fill, 0.16 * left)
+      graphics.fillCircle(net.x, net.y, net.radius)
+
+      graphics.lineStyle(2, netPalette.strand, 0.5 * left)
+      graphics.strokeCircle(net.x, net.y, net.radius)
+
+      // Strands across the web, at fixed angles for this net.
+      const strands = 9
+      const turn = net.id * 0.7
+      graphics.lineStyle(1, netPalette.strand, 0.45 * left)
+
+      for (let i = 0; i < strands; i++) {
+        const angle = turn + (i / strands) * Math.PI * 2
+        const across = angle + Math.PI * 0.62
+
+        graphics.lineBetween(
+          net.x + Math.cos(angle) * net.radius,
+          net.y + Math.sin(angle) * net.radius,
+          net.x + Math.cos(across) * net.radius,
+          net.y + Math.sin(across) * net.radius,
+        )
+      }
+
+      // Beads of poison caught in the mesh.
+      graphics.fillStyle(netPalette.poison, 0.5 * left)
+      for (let i = 0; i < strands; i++) {
+        const angle = turn * 1.7 + (i / strands) * Math.PI * 2
+        const reach = net.radius * (0.3 + 0.22 * ((i * 7) % 3))
+        graphics.fillCircle(net.x + Math.cos(angle) * reach, net.y + Math.sin(angle) * reach, 2.5)
+      }
+    }
   }
 
   /**
@@ -179,6 +253,10 @@ export class LevelScene extends Phaser.Scene {
    * simulation. What a click *means* is a game rule, so it lives in world.ts.
    */
   private bindPointer(): void {
+    // Nothing uses the right button, and the browser menu popping up over the
+    // game when a nine-year-old mis-clicks helps nobody.
+    this.input.mouse?.disableContextMenu()
+
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       // The HUD is a separate scene drawn over the bottom strip, so clicks down
       // there belong to it and never to the tissue.
@@ -198,7 +276,24 @@ export class LevelScene extends Phaser.Scene {
         return
       }
 
-      if (this.world.selectImmuneCellAt(pointer.worldX, pointer.worldY)) return
+      const cell = this.world.selectImmuneCellAt(pointer.worldX, pointer.worldY)
+      if (cell) {
+        // Twice on the same cell in quick succession sets off its NET. Only
+        // neutrophils have one, so double-clicking anything else is harmless.
+        if (this.isSecondClickOn(cell.id)) {
+          this.world.formNetFrom(cell.id)
+          this.forgetLastClick()
+        } else {
+          this.lastClickedCellId = cell.id
+          this.lastClickedAt = this.time.now
+        }
+
+        return
+      }
+
+      // A click anywhere else breaks the pair, so a click here and a click there
+      // can never add up to killing a cell.
+      this.forgetLastClick()
 
       // Clicking a bacterium sends the cell after that one specifically;
       // clicking the ground just sends it there.
@@ -209,9 +304,26 @@ export class LevelScene extends Phaser.Scene {
     })
 
     this.input.keyboard?.on('keydown-ESC', () => {
+      this.forgetLastClick()
       if (this.world.recruitingDefId) this.world.cancelRecruit()
       else this.world.clearSelection()
     })
+  }
+
+  /**
+   * Is this the second of a pair of clicks on the same cell, close enough
+   * together to mean it? Clicking two different cells in a row never counts,
+   * however fast — that is just picking cells up.
+   */
+  private isSecondClickOn(cellId: number): boolean {
+    return (
+      cellId === this.lastClickedCellId && this.time.now - this.lastClickedAt <= DOUBLE_CLICK_MS
+    )
+  }
+
+  private forgetLastClick(): void {
+    this.lastClickedCellId = null
+    this.lastClickedAt = Number.NEGATIVE_INFINITY
   }
 
   /** Vessels and wounds. Drawn once, underneath the tissue. */

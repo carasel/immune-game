@@ -1,5 +1,6 @@
 import type { PathogenDef } from '../content/pathogens'
 import { clamp, distance, type Size } from './geometry'
+import { isTrapped, type Net } from './nets'
 import type { Rng } from './rng'
 import type { BodyCell } from './tissue'
 
@@ -25,6 +26,8 @@ export interface PathogenContext {
   bodyCells: BodyCell[]
   bounds: Size
   rng: Rng
+  /** Webs on the ground. Anything inside one is stuck fast. */
+  nets: Net[]
   /** Called once for each body cell that dies, so energy can be charged. */
   onBodyCellDied: (cell: BodyCell) => void
 }
@@ -43,6 +46,10 @@ export function updatePathogen(
   def: PathogenDef,
   ctx: PathogenContext,
 ): void {
+  // Stuck to a web: it can't swim and it can't reach anything to eat. All it
+  // can do is sit there being poisoned, which is exactly what a NET is for.
+  if (isTrapped(pathogen, ctx.nets)) return
+
   const target = nearestBodyCellInRange(ctx.bodyCells, pathogen, def.visionRange)
 
   if (target) {

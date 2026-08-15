@@ -468,6 +468,8 @@ in dead body cells, and that is exactly what happens in a real infection.
   of each other, and leaving the level alone still loses. Both are tests now.
 - **One cell selected at a time**, for now. Box selection can come when there are enough cells
   on screen to need it.
+- **The only mouse controls are left-click and double-click.** The right button does nothing,
+  and the browser menu is switched off over the game so a mis-click doesn't cover it.
 - **You win by clearing the infection** — all waves arrived, nothing left alive — and the
   banner says how much tissue you saved. Losing is checked first, because tissue with nothing
   alive left in it has not been saved by the infection also being over.
@@ -521,6 +523,20 @@ in dead body cells, and that is exactly what happens in a real infection.
 - **Poisoning something pays nothing.** Only eating pays. So degranulation kills without
   feeding you, which keeps the macrophage the income engine even when the neutrophil is doing
   the killing.
+- **NETs.** Double-click a neutrophil and it tears itself apart, throwing its own DNA out as a
+  web 90px across that lasts 8 seconds. The two clicks have to be on the same cell and within
+  a third of a second: a click here and a click there never add up to killing one, and a
+  hesitant double-click just selects it twice. Bacteria in it are **held still** — they can neither
+  swim nor eat — and poisoned at 1.5 a second, so a blue one dies in about two. The cell does
+  not survive it. That is not a game-balance compromise either: it is called NETosis and the
+  cell really does destroy itself doing it.
+- **The web costs your tissue 80% of a body cell, once, as it lands.** A healthy cell survives
+  on a sliver; one already being chewed on dies. Deliberately a single hit rather than a drain,
+  so a NET wrecks the place it lands on without dissolving it — and it leaves a ring of cells
+  on 20% health that the next bacterium will finish off.
+- *Measured on level 1:* a NET dropped into 8 bacteria killed all 8 and cost one body cell.
+  Dropped into a swarm of 20 it killed 16 and cost about three cells' worth of damage. That is
+  the shape we want — a swarm-breaker you pay real tissue for, not a free button.
 - *Measured on level 1:* a neutrophil throws about 9 granules in its 90-second life, kills
   4 or 5 bacteria with them, and hits your own tissue twice — a third of one body cell. Adding
   it made the level faster to win and cheaper in tissue (2:14 and 43 cells → 1:56 and 45).

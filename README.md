@@ -37,6 +37,7 @@ src/
     pathogens.ts bacteria: hunt by sight, eat body cells, split in two
     immuneCells.ts  your cells: wander, hunt, swallow, clear up debris
     granules.ts  the poison neutrophils throw, and what it lands on
+    nets.ts      the webs they leave behind when they tear themselves apart
     economy.ts   energy: income, costs, starvation
     openings.ts  turns "a vessel on the left, 30% down" into coordinates
     rng.ts       seeded randomness, so a level always builds the same
@@ -72,6 +73,9 @@ still quietly make the game easier or harder.
   its own
 - **Click a bacterium** to send it after that one specifically. It gets a red ring, and the
   cell walks past easier targets until it has eaten it
+- **Double-click a neutrophil** to set off a NET. It tears itself apart into a sticky web that
+  holds bacteria still and poisons them — and takes most of the health off your own body cells
+  underneath. The neutrophil does not survive it
 - **+** in the bottom bar opens the recruit menu. Pick a cell, then **click a vessel** — it
   arrives there and has to walk to the fight itself. The energy is only spent once you've
   picked the vessel
@@ -108,6 +112,8 @@ Day 2 has started. The macrophage is in:
 - [x] Neutrophils: small, orange, spiky and fast, dead of old age in 90 seconds
 - [x] Degranulation: neutrophils throw purple poison that kills bacteria and
       hurts your own tissue when it misses
+- [x] NETs: right-click a neutrophil and it dies to leave a web that traps and
+      poisons everything in it, yours included
 - [x] Winning — clear every wave and the tissue is saved
 Left on the Day 2 list:
 
@@ -117,5 +123,4 @@ Left on the Day 2 list:
 
 After that, and not part of Day 2:
 
-- [ ] NETs — order a neutrophil to die and take the tissue with it
 - [ ] Narrow vessels as bottlenecks — recruits queue instead of arriving at once
