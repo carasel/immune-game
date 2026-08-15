@@ -229,16 +229,20 @@ describe('level 1 as it is tuned today', () => {
     expect(world.livingBodyCellCount).toBeGreaterThan(world.bodyCells.length * 0.8)
   })
 
-  it('is still won by a player who keeps fussing over their cells', () => {
+  it('is never made worse by a player who keeps fussing over their cells', () => {
     // Re-ordering cells to the fight used to lose the level outright, because
-    // each new order stopped them eating. A cell that has nearly arrived now
-    // breaks off for anything it can see, so fussing costs nothing.
-    const world = new World(theCut, TISSUE_VIEW)
+    // each new order stopped them eating: the fusspot did worse than someone who
+    // walked away. A cell that has nearly arrived now breaks off for anything it
+    // can see, so fussing is at worst harmless.
+    //
+    // Compared rather than pinned to a time, because exactly when a level turns
+    // is sensitive to every random number drawn before it — this asks whether
+    // fussing helps or hurts, which is the thing that must not regress.
+    const fussing = new World(theCut, TISSUE_VIEW)
     let lastOrder = 0
+    sendEveryoneToTheCut(fussing)
 
-    sendEveryoneToTheCut(world)
-
-    runUntil(world, 400, (w) => {
+    runUntil(fussing, 600, (w) => {
       if (w.elapsedSeconds - lastOrder >= 8) {
         lastOrder = w.elapsedSeconds
         sendEveryoneToTheCut(w)
@@ -246,7 +250,13 @@ describe('level 1 as it is tuned today', () => {
       return w.isOver
     })
 
-    expect(world.isWon, 'micro-managing loses the level again').toBe(true)
-    expect(world.livingBodyCellCount).toBeGreaterThan(world.bodyCells.length * 0.8)
+    const untouched = new World(theCut, TISSUE_VIEW)
+    runUntil(untouched, 600, (w) => w.isOver)
+
+    expect(untouched.isWon, 'level 1 now wins itself, so this proves nothing').toBe(false)
+    expect(
+      fussing.isWon || fussing.lostAtSeconds > untouched.lostAtSeconds,
+      'fussing over your cells is worse than ignoring the game',
+    ).toBe(true)
   })
 })

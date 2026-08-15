@@ -228,7 +228,21 @@ Each family has **6 colours**. Colour is a single axis meaning all of these at o
 - which powers it has,
 - and its **antigen signature** — what the adaptive immune system learns.
 
-Colour 1 is easy and simple; colour 6 is nasty with several powers.
+Colour 1 is easy and simple; colour 6 is nasty with several powers. Each colour keeps
+everything the one before it had and adds exactly one thing:
+
+| | | adds |
+| --- | --- | --- |
+| 1 | **blue** | the plain one everything else is measured against |
+| 2 | **yellow** | faster |
+| 3 | **red** | hits harder |
+| 4 | **green** | runs away from immune cells |
+| 5 | **orange** | faster again |
+| 6 | **purple** | hits harder again |
+
+So the ladder alternates between *harder to catch* and *worse when it gets you*, and the
+nastiest thing in the game is a purple that also runs away. Note that toughness is
+deliberately **not** on the ladder — a nastier bacterium is more dangerous, not spongier.
 
 *Note:* tier also drives size and spikiness in the placeholder sprites, so difficulty reads at
 a glance and isn't lost on a colourblind player. This is a default, not a rule — any pathogen
@@ -473,6 +487,17 @@ in dead body cells, and that is exactly what happens in a real infection.
 - **You win by clearing the infection** — all waves arrived, nothing left alive — and the
   banner says how much tissue you saved. Losing is checked first, because tissue with nothing
   alive left in it has not been saved by the infection also being over.
+- **The colour ladder is blue → yellow → red → green → orange → purple**, alternating between
+  faster and harder-hitting, with green's dodging in the middle. Toughness is deliberately not
+  part of it: every colour dies to one granule, so a nastier bacterium is more dangerous
+  rather than spongier. Worth watching — it does mean a neutrophil's granule one-shots
+  anything, and if that turns out to be too strong, health is the obvious thing to add to the
+  ladder.
+- **Mutation is the only way a new colour appears.** Waves bring blue and nothing else; a
+  bacterium that gets to divide has a 1 in 10 chance of coming out one shade along, up or
+  down. So colours are something an infection *becomes* when you let it run, not something a
+  level hands you. Blue and yellow and red exist; green needs it to run away from immune
+  cells, which is behaviour rather than numbers, and orange and purple sit behind green.
 - **Level 1 is winnable on the cells you start with, but only if you play it.** Send all three
   to the cut at the start and they meet each wave as it arrives: won at 2:14 with 43 of 50
   body cells, nothing recruited. Left alone the tissue is gone by 1:56. That gap between the

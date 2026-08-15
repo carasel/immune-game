@@ -16,9 +16,21 @@ export type PathogenFamily = 'bacteria' | 'virus' | 'parasite'
 
 /**
  * In order, easiest first. When a pathogen mutates it drifts one step along
- * this list, so the order matters.
+ * this list, so the order matters a great deal.
+ *
+ * Each colour keeps everything the one before it had and adds one new thing:
+ *
+ *   blue    the plain one everything else is measured against
+ *   yellow  faster
+ *   red     hits harder
+ *   green   runs away from immune cells
+ *   orange  faster again
+ *   purple  hits harder again
+ *
+ * So the ladder alternates between "harder to catch" and "worse when it gets
+ * you", and the nastiest thing in the game is a purple that also runs.
  */
-export const pathogenColours = ['blue', 'green', 'yellow', 'orange', 'red', 'purple'] as const
+export const pathogenColours = ['blue', 'yellow', 'red', 'green', 'orange', 'purple'] as const
 export type PathogenColour = (typeof pathogenColours)[number]
 
 export interface PathogenDef {
@@ -68,11 +80,67 @@ export const blueBacteria: PathogenDef = {
   wanderChangeSeconds: 2.5,
 }
 
-export const pathogens: PathogenDef[] = [blueBacteria]
+/**
+ * Tier 2: the same bacterium, quicker. Fast enough to be a nuisance to a
+ * macrophage (16) but still slower than a neutrophil (34), so it can be caught.
+ */
+export const yellowBacteria: PathogenDef = {
+  ...blueBacteria,
+  id: 'yellow-bacteria',
+  name: 'Yellow bacteria',
+  colour: 'yellow',
+
+  // A little bigger, so a nastier one reads as nastier at a glance.
+  length: 27,
+  width: 16,
+
+  speed: 30,
+}
+
+/** Tier 3: as quick as yellow, and it eats a body cell half again as fast. */
+export const redBacteria: PathogenDef = {
+  ...yellowBacteria,
+  id: 'red-bacteria',
+  name: 'Red bacteria',
+  colour: 'red',
+
+  length: 28,
+  width: 17,
+
+  /** 0.14 means it takes about 7 seconds to kill one body cell, against blue's 11. */
+  damagePerSecond: 0.14,
+}
+
+/**
+ * Every pathogen in the game. Green, orange and purple are still to come: green
+ * needs it to run away from immune cells, which is behaviour rather than
+ * numbers, and the two after it sit on the far side of green so nothing can
+ * mutate that far yet.
+ */
+export const pathogens: PathogenDef[] = [blueBacteria, yellowBacteria, redBacteria]
 
 const byId = new Map(pathogens.map((def) => [def.id, def]))
 
 /** Returns undefined for an unknown id, so a typo in a level doesn't crash. */
 export function findPathogen(id: string): PathogenDef | undefined {
   return byId.get(id)
+}
+
+/**
+ * The pathogens one step either side of this one on the colour ladder, of the
+ * same family — what it might turn into when it divides.
+ *
+ * Colours with no def yet simply aren't options, so the ladder can be filled in
+ * from either end without anything here changing. A blue can only become a
+ * yellow today; once green exists, a red will be able to become one.
+ */
+export function mutationsOf(def: PathogenDef): PathogenDef[] {
+  const step = pathogenColours.indexOf(def.colour)
+  if (step === -1) return []
+
+  const neighbours = [pathogenColours[step - 1], pathogenColours[step + 1]]
+
+  return pathogens.filter(
+    (candidate) => candidate.family === def.family && neighbours.includes(candidate.colour),
+  )
 }

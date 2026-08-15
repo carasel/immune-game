@@ -115,12 +115,16 @@ Day 2 has started. The macrophage is in:
 - [x] NETs: right-click a neutrophil and it dies to leave a web that traps and
       poisons everything in it, yours included
 - [x] Winning — clear every wave and the tissue is saved
+- [x] Click a bacterium to send a cell after that one specifically
+- [x] Mutation: a dividing bacterium can come out one colour along the ladder,
+      which is the only way yellow and red ever appear
+
 Left on the Day 2 list:
 
-- [ ] Click a bacterium to send a cell after that one specifically
-- [ ] A second bacterium colour, and mutation between neighbouring colours
 - [ ] Tuning the numbers until it feels right — the last and best bit
 
 After that, and not part of Day 2:
 
+- [ ] Green bacteria, which run away from immune cells — then orange and purple
+      behind them
 - [ ] Narrow vessels as bottlenecks — recruits queue instead of arriving at once

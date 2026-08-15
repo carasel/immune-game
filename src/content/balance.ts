@@ -100,6 +100,17 @@ export const balance = {
   /** Hard cap, so runaway bacteria can't grind the game to a halt. */
   maxPathogens: 250,
 
+  /**
+   * The chance that a bacterium splitting in two produces something a shade
+   * different from its parent — one step along the colour ladder, up or down.
+   *
+   * This is the only way a new colour ever appears in a level: the waves bring
+   * blue and nothing else. Let a fight run away from you for long enough and it
+   * starts changing colour, which is antigenic drift, and is exactly why the flu
+   * vaccine is a yearly guess.
+   */
+  mutationChance: 0.1,
+
   // ---------------------------------------------------------------------------
   // IMMUNE CELLS
   // Each cell type's own numbers live in content/cells.ts. These apply to all of
