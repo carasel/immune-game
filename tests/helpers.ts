@@ -66,9 +66,23 @@ export function stripTissue(world: World, keep = 1): void {
   }
 }
 
-/** Turns some body cells into the husks a macrophage clears up. */
-export function leaveDebris(world: World, count: number): void {
-  for (const cell of world.bodyCells.slice(0, count)) {
+/**
+ * Turns some body cells into the husks a macrophage clears up.
+ *
+ * Pass `near` and it picks the ones closest to that spot rather than the first
+ * in the list. Worth doing whenever a test cares that a cell can see the mess:
+ * where the tissue happened to put body cell 0 is the tissue's business, and it
+ * moves the moment anything about the level changes.
+ */
+export function leaveDebris(
+  world: World,
+  count: number,
+  near?: { x: number; y: number },
+): void {
+  const cells = world.bodyCells.slice()
+  if (near) cells.sort((a, b) => gap(a, near) - gap(b, near))
+
+  for (const cell of cells.slice(0, count)) {
     cell.alive = false
     cell.health = 0
     cell.debris = true

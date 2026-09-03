@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest'
 import { macrophage } from '../src/content/cells'
 import { bounds, firstOfType, gap, placeBacterium, run, runUntil, worldWith } from './helpers'
 
-const oneMacrophage = [{ cell: 'macrophage', count: 1 }]
+/**
+ * One macrophage, always in the same spot: half way down the open channel on
+ * the left, with the width of the tissue ahead of it.
+ *
+ * The `at` is what makes these tests repeatable. A scattered cell lands
+ * wherever the tissue has room, so `cell.x + 420` can be off the side of the
+ * map or hard against a wall, and any change to the tissue moves it.
+ */
+const oneMacrophage = [{ cell: 'macrophage', count: 1, at: { x: 0.1, y: 0.5 } }]
 
 describe('picking a cell up', () => {
   it('selects the cell you clicked on', () => {
