@@ -12,6 +12,20 @@
 export type Edge = 'left' | 'right' | 'top' | 'bottom'
 
 /**
+ * What one of these looks like on screen, and what shape the tissue is held
+ * back in.
+ *
+ *   mouth  a smooth tube opening into the tissue. Blood vessels are always
+ *          this, and so are surfaces like a lung or a gut wall.
+ *   wound  a gash torn into the flesh: full width where it broke the surface,
+ *          tapering to a point as it cuts in. A cut in the skin.
+ *
+ * Openings default to `mouth` and entries to `wound`, so most of the time you
+ * can leave it out.
+ */
+export type EdgeRegionShape = 'mouth' | 'wound'
+
+/**
  * A gap in the edge of the tissue. Used for two different things:
  *  - openings: blood vessels, where YOUR immune cells arrive
  *  - entries:  wounds and surfaces, where the PATHOGENS get in
@@ -30,6 +44,11 @@ export interface EdgeRegionDef {
   width: number
   /** How far it cuts into the tissue. */
   depth: number
+  /**
+   * Leave it out unless you want a vessel drawn as a gash, or a wound drawn as
+   * a smooth surface.
+   */
+  shape?: EdgeRegionShape
 }
 
 /**
@@ -147,8 +166,10 @@ export const theCut: LevelDef = {
     { id: 'vessel-lower-left', label: 'narrow vessel', edge: 'left', along: 0.82, width: 80, depth: 55 },
   ],
 
-  // Where the bacteria get in.
-  entries: [{ id: 'the-cut', label: 'the cut', edge: 'top', along: 0.5, width: 150, depth: 42 }],
+  // Where the bacteria get in. Drawn as a gash, so `depth` is how far the cut
+  // goes in before it tapers to a point — a cut wants to be a good deal deeper
+  // than it is wide at the tip, or it reads as a shallow notch instead.
+  entries: [{ id: 'the-cut', label: 'the cut', edge: 'top', along: 0.5, width: 130, depth: 80 }],
 
   // Two macrophages already patrolling wherever there is room, and one
   // neutrophil right down in the far corner by the narrow vessel. It is the

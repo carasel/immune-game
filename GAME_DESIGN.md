@@ -580,3 +580,24 @@ in dead body cells, and that is exactly what happens in a real infection.
   reads as the game taking one off you, not as the price of going broke.
 - Immune cells **do** block each other (`immuneCellsBlockEachOther` in balance.ts, so it
   really was a one-line change).
+
+*2026-09-03*
+
+- **A wound is drawn as a wound, not as a mouth with a different colour.** Vessels and
+  pathogen entries were the same rounded-rect notch in two colours, which is why the cut in
+  level 1 didn't read as a cut. An entry now has a `shape` in `levels.ts`: `wound` tears a
+  tapered gash — full width where it broke the surface, narrowing to a blunt tip, with both
+  walls wandering out of step so it looks torn rather than cut with scissors — and `mouth`
+  keeps the old smooth notch, which is what the lung and gut-wall levels will want.
+- Colour carries the rest of it: dark red under the surface going almost black at the tip, so
+  you read *down into* rather than *a hole in the side*, with a raw bright lip along the torn
+  edges that fades as it goes deeper. A skin layer along the top edge was considered and left
+  out for now.
+- **The shape is the sim's, not the renderer's.** Tissue is held back by the gash's real
+  outline, so body cells pack against its sloping walls instead of standing off a rectangle,
+  and bacteria arrive spread across the width the gash *actually has* that far in — they
+  trickle out of the slit rather than appearing in the flesh either side of it. One shape,
+  drawn and simulated from the same points, and the level-select map gets it for free.
+- The cut is **130 wide by 80 deep**, down from 150 by 42. A gash wants to be deeper than it
+  is wide or it reads as a shallow bay. Checked against the tissue near the wound (unchanged
+  at 13 body cells within 300px) and against both balance canaries.

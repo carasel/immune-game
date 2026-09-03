@@ -1,6 +1,6 @@
 import { balance } from '../content/balance'
 import type { TissueBlobDef } from '../content/levels'
-import { clamp, distance, rectContains, type Rect, type Size } from './geometry'
+import { clamp, distance, keepOutContains, type KeepOut, type Size } from './geometry'
 import { randomRange, type Rng } from './rng'
 
 export interface BodyCell {
@@ -60,11 +60,13 @@ const FINAL_PASSES = 60
  * waste too much room and look like spots; a grid always shows through as a
  * grid however much it is jittered. Settling gives dense, irregular packing.
  *
- * `clearRects` are the vessel corridors and wounds — nothing grows there.
+ * `clearAreas` are the vessels and the wounds — nothing grows there. They are
+ * real shapes rather than boxes, so tissue packs right up against the sloping
+ * wall of a cut.
  */
 export function generateBodyCells(
   area: Size,
-  clearRects: Rect[],
+  clearAreas: KeepOut[],
   options: { count: number; clusterCount: number; blobs?: TissueBlobDef[] },
   rng: Rng,
 ): BodyCell[] {
@@ -94,7 +96,7 @@ export function generateBodyCells(
   const maxY = area.height - margin
 
   const isClear = (x: number, y: number) =>
-    !clearRects.some((rect) => rectContains(rect, x, y, clearance))
+    !clearAreas.some((area) => keepOutContains(area, x, y, clearance))
 
   // 1. Work out where the blobs go. A level can place them by hand, which is
   //    how you actually design a level; otherwise they get scattered.

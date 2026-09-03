@@ -3,7 +3,7 @@ import { findImmuneCell, type ImmuneCellDef } from '../content/cells'
 import type { LevelDef, WaveDef } from '../content/levels'
 import { findPathogen, mutationsOf, type PathogenDef } from '../content/pathogens'
 import { Economy } from './economy'
-import { clamp, distance, rectContains, type Size, type Vec2 } from './geometry'
+import { clamp, distance, keepOutContains, rectContains, type Size, type Vec2 } from './geometry'
 import { updateGranule, type Granule } from './granules'
 import { bodyCellsUnder, updateNet, type Net } from './nets'
 import {
@@ -92,13 +92,15 @@ export class World {
     this.bounds = bounds
 
     this.rng = makeRng(level.seed)
-    this.openings = resolveEdgeRegions(level.openings, bounds)
-    this.entries = resolveEdgeRegions(level.entries, bounds)
+    // Vessels are smooth tube mouths; a pathogen entry is a gash unless the
+    // level says otherwise.
+    this.openings = resolveEdgeRegions(level.openings, bounds, 'mouth')
+    this.entries = resolveEdgeRegions(level.entries, bounds, 'wound')
 
-    const clearRects = [...this.openings, ...this.entries].map((region) => region.corridor)
+    const clearAreas = [...this.openings, ...this.entries].map((region) => region.keepOut)
     this.bodyCells = generateBodyCells(
       bounds,
-      clearRects,
+      clearAreas,
       { count: level.bodyCellCount, clusterCount: level.clusterCount, blobs: level.blobs },
       this.rng,
     )
@@ -283,16 +285,16 @@ export class World {
 
   /** Puts a new pathogen just inside an entry, spread across its width. */
   private addPathogen(def: PathogenDef, entry: EdgeRegion): void {
-    // Sideways along the mouth, which is at right angles to the inward direction.
-    const acrossX = -entry.inward.y
-    const acrossY = entry.inward.x
-    const offset = randomRange(this.rng, -entry.width * 0.35, entry.width * 0.35)
+    // Spread sideways across the mouth. A gash has narrowed a long way by the
+    // time it is this deep, so they come trickling out of the slit rather than
+    // appearing in the flesh either side of it.
+    const offset = randomRange(this.rng, -entry.innerHalfWidth * 0.7, entry.innerHalfWidth * 0.7)
 
     this.pathogens.push({
       id: this.nextPathogenId++,
       defId: def.id,
-      x: entry.innerPoint.x + acrossX * offset,
-      y: entry.innerPoint.y + acrossY * offset,
+      x: entry.innerPoint.x + entry.tangent.x * offset,
+      y: entry.innerPoint.y + entry.tangent.y * offset,
       angle: Math.atan2(entry.inward.y, entry.inward.x),
       health: def.health,
       alive: true,
@@ -472,14 +474,12 @@ export class World {
     this.pendingRecruit = null
 
     // Spread across the mouth, so several recruits don't land in a stack.
-    const acrossX = -opening.inward.y
-    const acrossY = opening.inward.x
-    const offset = randomRange(this.rng, -opening.width * 0.3, opening.width * 0.3)
+    const offset = randomRange(this.rng, -opening.innerHalfWidth * 0.6, opening.innerHalfWidth * 0.6)
 
     return this.createImmuneCell(
       def,
-      opening.innerPoint.x + acrossX * offset,
-      opening.innerPoint.y + acrossY * offset,
+      opening.innerPoint.x + opening.tangent.x * offset,
+      opening.innerPoint.y + opening.tangent.y * offset,
       Math.atan2(opening.inward.y, opening.inward.x),
     )
   }
@@ -583,7 +583,7 @@ export class World {
   /** Clear of tissue, clear of other immune cells, and not sitting in a wound. */
   private isRoomForImmuneCell(def: ImmuneCellDef, x: number, y: number): boolean {
     for (const entry of this.entries) {
-      if (rectContains(entry.corridor, x, y, def.radius)) return false
+      if (keepOutContains(entry.keepOut, x, y, def.radius)) return false
     }
 
     for (const bodyCell of this.bodyCells) {

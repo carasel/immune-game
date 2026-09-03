@@ -334,7 +334,41 @@ export class LevelScene extends Phaser.Scene {
       this.drawEdgeRegion(graphics, opening, palette.vessel, palette.vesselLip)
     }
     for (const entry of this.world.entries) {
-      this.drawEdgeRegion(graphics, entry, palette.entry, palette.entryLip)
+      if (entry.walls) this.drawWound(graphics, entry)
+      else this.drawEdgeRegion(graphics, entry, palette.entry, palette.entryLip)
+    }
+  }
+
+  /**
+   * A cut, seen end-on: a gash torn into the flesh, wide where it broke the
+   * surface and tapering to a point as it goes in.
+   *
+   * Drawn as a stack of slices between the two walls, darkening as they go
+   * deeper, because a wound you can see the bottom of doesn't look deep. The
+   * shape is the sim's, the same one the tissue was held back from, so the
+   * body cells really are packed against these walls.
+   */
+  private drawWound(graphics: Phaser.GameObjects.Graphics, wound: EdgeRegion): void {
+    const [wallA, wallB] = wound.walls!
+    const slices = wallA.length - 1
+
+    for (let slice = 0; slice < slices; slice++) {
+      const depth = (slice + 0.5) / slices
+      graphics.fillStyle(mixColour(palette.woundMouth, palette.woundDeep, depth), 1)
+      graphics.fillPoints(
+        [wallA[slice], wallA[slice + 1], wallB[slice + 1], wallB[slice]],
+        true,
+      )
+    }
+
+    // The torn edges, raw and bright where the surface broke and fading away
+    // into the dark. Drawn a segment at a time so it can fade.
+    for (const wall of wound.walls!) {
+      for (let step = 0; step < wall.length - 1; step++) {
+        const depth = step / (wall.length - 1)
+        graphics.lineStyle(3, palette.woundLip, 0.95 - 0.75 * depth)
+        graphics.lineBetween(wall[step].x, wall[step].y, wall[step + 1].x, wall[step + 1].y)
+      }
     }
   }
 

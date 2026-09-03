@@ -19,9 +19,19 @@ export const palette = {
   vessel: 0xa81f38,
   vesselLip: 0xff6b81,
 
-  // Wounds and surfaces — where pathogens get in
+  // Surfaces pathogens get in through — a lung, a gut wall
   entry: 0x2ec4b6,
   entryLip: 0x6ef2e6,
+
+  /**
+   * A cut. Dark red just under the surface going almost black down at the tip,
+   * so you read "down into" rather than "a hole in the side", with a raw bright
+   * lip along the torn edges. Deliberately nothing like a vessel: a vessel is a
+   * smooth red tube you want cells to come out of, and this is a gash.
+   */
+  woundMouth: 0x8c1c2e,
+  woundDeep: 0x25060f,
+  woundLip: 0xff7a8c,
 
   /** The ring round the cell you have picked up, and where you sent it. */
   selection: 0xeef1fb,
