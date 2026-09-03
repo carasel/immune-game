@@ -3,7 +3,17 @@ import { macrophage, neutrophil } from '../src/content/cells'
 import { blueBacteria } from '../src/content/pathogens'
 import { firstOfType, gap, placeBacterium, run, runUntil, worldWith } from './helpers'
 
-const oneNeutrophil = [{ cell: 'neutrophil', count: 1 }]
+/**
+ * One neutrophil, always in the same spot: half way down the open channel on
+ * the left, with the width of the tissue to throw across.
+ *
+ * The `at` is doing real work here. Scattered, the cell can start near the
+ * right-hand wall, and then a granule thrown to the right leaves the world on
+ * the tick it is thrown and is cleared away before the cadence test can count
+ * it — and a cell chasing its target rightwards ends up pinned in the corner
+ * with the target clamped on top of it, eating instead of throwing.
+ */
+const oneNeutrophil = [{ cell: 'neutrophil', count: 1, at: { x: 0.1, y: 0.5 } }]
 const granules = neutrophil.granules!
 
 describe('throwing granules', () => {
@@ -29,6 +39,16 @@ describe('throwing granules', () => {
   it('waits out of range, and fires the moment one comes into it', () => {
     const world = worldWith(oneNeutrophil)
     const cell = firstOfType(world, 'neutrophil')
+
+    // Tissue out of the way, for the same reason as the cadence test below: this
+    // is about range and reloading, and a cell that wanders into the tissue
+    // while it waits throws granules that hit a body cell and are cleared away
+    // on the tick they are thrown.
+    for (const body of world.bodyCells) {
+      body.alive = false
+      body.health = 0
+      body.debris = false
+    }
 
     // Twice its reach, and only briefly, so it can't wander over and eat it.
     const bacterium = placeBacterium(world, cell.x + granules.range * 2, cell.y)

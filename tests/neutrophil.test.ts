@@ -6,7 +6,13 @@ import { World } from '../src/sim/world'
 import { firstOfType, leaveDebris, placeBacterium, run, runUntil, worldWith } from './helpers'
 
 
-const oneNeutrophil = [{ cell: 'neutrophil', count: 1 }]
+/**
+ * One neutrophil, always in the same spot: half way down the open channel on
+ * the left, with room to its right for the bacteria these tests place beside
+ * it. Left scattered, where it lands depends on the seed and on the shape of
+ * the tissue, so an unrelated change to either one moves it.
+ */
+const oneNeutrophil = [{ cell: 'neutrophil', count: 1, at: { x: 0.1, y: 0.5 } }]
 
 describe('what makes a neutrophil different', () => {
   it('is fast enough to catch a bacterium, where a macrophage is not', () => {
@@ -75,7 +81,10 @@ describe('what makes a neutrophil different', () => {
 
   it('walks straight past the mess — clearing up is not its job', () => {
     const world = worldWith(oneNeutrophil)
-    leaveDebris(world, 8)
+    const cell = firstOfType(world, 'neutrophil')
+
+    // Right under its nose, where a macrophage would have cleared the lot.
+    leaveDebris(world, 8, cell)
 
     run(world, neutrophil.lifespanSeconds! - 5)
 
@@ -97,18 +106,21 @@ describe('level 1', () => {
     expect(world.immuneCellCounts.get('neutrophil')).toBe(1)
   })
 
-  it('starts its neutrophil further from the wound than either macrophage', () => {
+  it('starts its neutrophil a long walk from the wound', () => {
     const world = new World(theCut, TISSUE_VIEW)
     const cut = world.entries[0]
-    const fromCut = (cell: { x: number; y: number }) =>
-      Math.hypot(cell.x - cut.innerPoint.x, cell.y - cut.innerPoint.y)
+    const cell = world.immuneCells.find((one) => one.defId === 'neutrophil')!
 
-    const neutrophil = world.immuneCells.find((cell) => cell.defId === 'neutrophil')!
-    const macrophages = world.immuneCells.filter((cell) => cell.defId === 'macrophage')
+    const toTheCut = Math.hypot(cell.x - cut.innerPoint.x, cell.y - cut.innerPoint.y)
 
-    for (const macrophage of macrophages) {
-      expect(fromCut(neutrophil)).toBeGreaterThan(fromCut(macrophage))
-    }
+    // Not a comparison against the macrophages: the level scatters those on
+    // purpose, so one of them can quite legitimately land further out than the
+    // neutrophil, and nothing is wrong when it does. What the level actually
+    // promises is this — the neutrophil is hand-placed down by the narrow
+    // vessel, far enough away that getting it to the wound costs a real slice
+    // of the 90 seconds it has to live. Straight line, full speed, no tissue in
+    // the way: the walk it really has is longer than this.
+    expect(toTheCut / neutrophil.speed).toBeGreaterThan(neutrophil.lifespanSeconds! * 0.15)
   })
 
   it('puts a hand-placed cell where the level asked for it', () => {

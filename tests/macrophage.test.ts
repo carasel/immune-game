@@ -10,7 +10,19 @@ import {
   worldWith,
 } from './helpers'
 
-const oneMacrophage = [{ cell: 'macrophage', count: 1 }]
+/**
+ * One macrophage, always in the same spot: in the open channel down the left,
+ * with a blob of tissue a little way to its right.
+ *
+ * The `at` is the important part. Left out, a starting cell is scattered into
+ * whatever open space the tissue has left, which depends on the seed AND on the
+ * shape of every wound and vessel — so a change to the level's wound moves the
+ * cell, and tests that put a bacterium at `cell.x + 40` fail for reasons of
+ * their own. Pinned here it has open ground to hunt across, tissue in the way
+ * for the squeezing test below, and a body cell near enough to be the husk in
+ * the husk test.
+ */
+const oneMacrophage = [{ cell: 'macrophage', count: 1, at: { x: 0.1, y: 0.24 } }]
 
 describe('a macrophage hunting', () => {
   it('swallows a bacterium it can reach, and the bacterium stops being a threat at once', () => {
@@ -64,7 +76,11 @@ describe('a macrophage hunting', () => {
 
   it('clears away the husks dead body cells leave behind', () => {
     const world = worldWith(oneMacrophage)
-    leaveDebris(world, 6)
+    const cell = firstOfType(world, 'macrophage')
+
+    // The six husks nearest the macrophage, so this stays a test about clearing
+    // up rather than about whether the tissue happened to leave one in sight.
+    leaveDebris(world, 6, cell)
 
     expect(world.debrisCount).toBe(6)
 

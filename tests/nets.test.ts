@@ -3,7 +3,14 @@ import { macrophage, neutrophil } from '../src/content/cells'
 import { blueBacteria } from '../src/content/pathogens'
 import { firstOfType, gap, placeBacterium, run, runUntil, worldWith } from './helpers'
 
-const oneNeutrophil = [{ cell: 'neutrophil', count: 1 }]
+/**
+ * One neutrophil, always in the same spot: half way down the open channel on
+ * the left, with room to its right for the bacteria these tests place around
+ * it. Scattered, it could start hard against a wall, with the spots these
+ * tests reach for off the side of the map — and it would move again with any
+ * change to the tissue.
+ */
+const oneNeutrophil = [{ cell: 'neutrophil', count: 1, at: { x: 0.1, y: 0.5 } }]
 const net = neutrophil.net!
 
 /** A world with a single body cell left standing, well away from everything. */
