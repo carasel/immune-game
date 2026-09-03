@@ -3,6 +3,7 @@ import { balance } from '../content/balance'
 import { findImmuneCell, immuneCells } from '../content/cells'
 import { HUD_HEIGHT, WORLD } from '../content/levels'
 import type { World } from '../sim/world'
+import { formatClock } from './format'
 import { drawBacteriumIcon, drawBodyCellIcon, drawEnergyIcon, drawImmuneCellIcon } from './icons'
 import { font, immunePalette, palette, textColour } from './palette'
 
@@ -35,7 +36,14 @@ function hexColour(colour: number | undefined): string {
  * speed controls. Lives in its own scene so UI never fights the game camera.
  */
 export class HudScene extends Phaser.Scene {
-  private world!: World
+  /**
+   * Read fresh every time rather than kept, because this scene outlives the
+   * world it is describing: restarting a level builds a new one and puts it in
+   * the registry, and a stale reference would quietly report the old game.
+   */
+  private get world(): World {
+    return this.registry.get('world') as World
+  }
 
   private energyText!: Phaser.GameObjects.Text
   private incomeText!: Phaser.GameObjects.Text
@@ -46,10 +54,6 @@ export class HudScene extends Phaser.Scene {
   private clockText!: Phaser.GameObjects.Text
   private energyBar!: Phaser.GameObjects.Graphics
   private starvingWarning!: Phaser.GameObjects.Text
-  private lostBanner!: Phaser.GameObjects.Text
-  private lostSubtitle!: Phaser.GameObjects.Text
-  private wonBanner!: Phaser.GameObjects.Text
-  private wonSubtitle!: Phaser.GameObjects.Text
 
   private recruitHint!: Phaser.GameObjects.Text
   private recruitButton!: Phaser.GameObjects.Rectangle
@@ -67,8 +71,6 @@ export class HudScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.world = this.registry.get('world') as World
-
     this.add
       .rectangle(0, this.top, WORLD.width, HUD_HEIGHT, palette.hudPanel, 0.96)
       .setOrigin(0, 0)
@@ -158,41 +160,14 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setVisible(false)
 
-    // The two endings. Only ever one of them: the world decides once and latches.
-    this.lostBanner = this.buildBanner('TISSUE LOST', textColour.lost)
-    this.lostSubtitle = this.buildSubtitle()
-
-    this.wonBanner = this.buildBanner('TISSUE SAVED', textColour.won)
-    this.wonSubtitle = this.buildSubtitle()
+    // How a level ends is LevelScene's business — it is the scene that knows
+    // which level this is, so it is the one that can offer another go.
 
     this.buildSpeedButtons(midY)
     this.buildRecruitButton(midY)
     this.buildRecruitMenu()
     this.bindKeys()
     this.refresh()
-  }
-
-  private buildBanner(message: string, colour: string): Phaser.GameObjects.Text {
-    return this.add
-      .text(WORLD.width / 2, this.top / 2, message, {
-        fontFamily: font.family,
-        fontSize: '44px',
-        color: colour,
-      })
-      .setOrigin(0.5)
-      .setVisible(false)
-  }
-
-  /** The line under a banner — how it went, and how long it took. */
-  private buildSubtitle(): Phaser.GameObjects.Text {
-    return this.add
-      .text(WORLD.width / 2, this.top / 2 + 36, '', {
-        fontFamily: font.family,
-        fontSize: '16px',
-        color: textColour.dim,
-      })
-      .setOrigin(0.5)
-      .setVisible(false)
   }
 
   update(time: number): void {
@@ -411,33 +386,6 @@ export class HudScene extends Phaser.Scene {
       speed === 0 ? 'PAUSED' : `${formatClock(this.world.elapsedSeconds)}   ${speed}x`,
     )
 
-    const lost = this.world.isLost
-    this.lostBanner.setVisible(lost)
-    this.lostSubtitle.setVisible(lost)
-    if (lost) {
-      // Which way you lost matters: every body cell eaten is a different
-      // failure from your last cell starving, and they should not read alike.
-      const cause =
-        this.world.lossReason === 'tissue'
-          ? 'every body cell is dead'
-          : 'your last immune cell starved'
-
-      this.lostSubtitle.setText(
-        `${cause} — it held out for ${formatClock(this.world.lostAtSeconds)}`,
-      )
-    }
-
-    const won = this.world.isWon
-    this.wonBanner.setVisible(won)
-    this.wonSubtitle.setVisible(won)
-    if (won) {
-      // How much tissue you saved is the score. Time is the tiebreaker.
-      this.wonSubtitle.setText(
-        `infection cleared in ${formatClock(this.world.wonAtSeconds)} — ` +
-          `${living} of ${total} body cells made it`,
-      )
-    }
-
     this.drawEnergyBar(economy.energy)
 
     for (const button of this.speedButtons) {
@@ -523,8 +471,3 @@ function labelForSpeed(speed: number): string {
   return `${speed}x`
 }
 
-function formatClock(totalSeconds: number): string {
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = Math.floor(totalSeconds % 60)
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`
-}

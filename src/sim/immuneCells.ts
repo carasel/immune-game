@@ -2,7 +2,7 @@ import { balance } from '../content/balance'
 import { findImmuneCell, type ImmuneCellDef } from '../content/cells'
 import { findPathogen } from '../content/pathogens'
 import { clamp, distance, type Size, type Vec2 } from './geometry'
-import type { Pathogen } from './pathogens'
+import { loseBall, pathogenRadius, type Pathogen } from './pathogens'
 import type { Rng } from './rng'
 import type { BodyCell } from './tissue'
 
@@ -154,7 +154,11 @@ export function updateImmuneCell(
 
       if (withinReach(cell, def, quarry)) {
         swallow(cell, def, quarry)
-        cell.order = null
+
+        // A clump with balls left is still the thing you sent it after, so the
+        // order stands: once this mouthful is digested it goes back for the
+        // rest, rather than wandering off with the job half done.
+        if (!quarry.alive) cell.order = null
         return
       }
 
@@ -275,17 +279,32 @@ function throwGranules(cell: ImmuneCell, def: ImmuneCellDef, ctx: ImmuneCellCont
 /** Is the cell close enough to swallow this pathogen? */
 function withinReach(cell: ImmuneCell, def: ImmuneCellDef, prey: Pathogen): boolean {
   const preyDef = findPathogen(prey.defId)
-  const reach = def.radius * PATHOGEN_REACH + (preyDef?.radius ?? 0)
+  const reach =
+    def.radius * PATHOGEN_REACH + (preyDef ? pathogenRadius(prey, preyDef) : 0)
 
   return distance(cell.x, cell.y, prey.x, prey.y) <= reach
 }
 
 /**
- * Swallowed whole. It is inside the cell now, so it stops being a problem
- * immediately even though digesting it takes a while.
+ * One mouthful. A rod goes down whole and stops being a problem immediately,
+ * even though digesting it takes a while.
+ *
+ * A cocci does not: the cell bites off exactly ONE of its balls, and the rest of
+ * the clump swims on. That is what makes them tanks — a macrophage that takes a
+ * ball off a clump of four then spends two whole seconds digesting it, while the
+ * other three balls carry on eating your tissue.
+ *
+ * Either way it is a full meal and pays a full meal's energy.
  */
 function swallow(cell: ImmuneCell, def: ImmuneCellDef, prey: Pathogen): void {
-  prey.alive = false
+  const preyDef = findPathogen(prey.defId)
+
+  if (preyDef) {
+    loseBall(prey, preyDef)
+  } else {
+    // No def to ask how it comes apart, so it goes down whole.
+    prey.alive = false
+  }
 
   cell.meal = {
     kind: 'pathogen',

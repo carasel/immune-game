@@ -1,5 +1,6 @@
+import { findPathogen } from '../content/pathogens'
 import { distance } from './geometry'
-import type { Pathogen } from './pathogens'
+import { damagePathogen, type Pathogen } from './pathogens'
 import type { BodyCell } from './tissue'
 
 /**
@@ -43,11 +44,13 @@ export function updateNet(net: Net, ctx: NetContext): void {
     if (!pathogen.alive) continue
     if (distance(net.x, net.y, pathogen.x, pathogen.y) > net.radius) continue
 
-    pathogen.health -= net.damagePerSecondToPathogens * ctx.dt
-    if (pathogen.health <= 0) {
-      pathogen.health = 0
-      pathogen.alive = false
-    }
+    const def = findPathogen(pathogen.defId)
+    if (!def) continue
+
+    // Poison seeps in gradually, so a cocci held in a web comes apart one ball
+    // at a time — a slow, certain way to take a clump down that a macrophage
+    // would have to make several trips for.
+    damagePathogen(pathogen, def, net.damagePerSecondToPathogens * ctx.dt)
   }
 }
 

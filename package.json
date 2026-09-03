@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "tsc --noEmit && vitest run",
-    "verify": "tsc --noEmit && vitest run && vite build"
+    "verify": "tsc --noEmit && vitest run && vite build",
+    "explore": "node tools/explore.mjs"
   },
   "dependencies": {
     "phaser": "^3.88.0"

@@ -14,7 +14,7 @@ import {
   type ImmuneCellContext,
 } from './immuneCells'
 import { resolveEdgeRegions, type EdgeRegion } from './openings'
-import { updatePathogen, type Pathogen } from './pathogens'
+import { pathogenRadius, updatePathogen, type Pathogen } from './pathogens'
 import { makeRng, pick, randomRange, type Rng } from './rng'
 import { generateBodyCells, type BodyCell } from './tissue'
 
@@ -297,6 +297,8 @@ export class World {
       y: entry.innerPoint.y + entry.tangent.y * offset,
       angle: Math.atan2(entry.inward.y, entry.inward.x),
       health: def.health,
+      // A cocci arrives as a whole clump. A rod is one body, so it is always 1.
+      balls: def.balls,
       alive: true,
       // Staggered, so a whole wave doesn't split at the same instant.
       divideIn: def.divideEverySeconds * randomRange(this.rng, 0.6, 1.1),
@@ -413,7 +415,7 @@ export class World {
       const def = findPathogen(pathogen.defId)
       if (!def) continue
 
-      const reach = Math.max(def.radius, MINIMUM_CLICK_RADIUS)
+      const reach = Math.max(pathogenRadius(pathogen, def), MINIMUM_CLICK_RADIUS)
       const away = distance(pathogen.x, pathogen.y, x, y)
       if (away > reach || away >= bestDistance) continue
 
@@ -841,11 +843,15 @@ export class World {
     return {
       id: this.nextPathogenId++,
       defId: childDef.id,
-      // Placed by the parent's size, since it is the parent making room.
-      x: parent.x + Math.cos(angle) * def.radius,
-      y: parent.y + Math.sin(angle) * def.radius,
+      // Placed by the parent's size, since it is the parent making room. A
+      // clump that has lost balls is smaller, so it makes a smaller gap.
+      x: parent.x + Math.cos(angle) * pathogenRadius(parent, def),
+      y: parent.y + Math.sin(angle) * pathogenRadius(parent, def),
       angle,
       health: childDef.health,
+      // A half-eaten clump still divides into a whole new one. Splitting is a
+      // cell copying itself, not sharing out what it has left.
+      balls: childDef.balls,
       alive: true,
       divideIn: childDef.divideEverySeconds * randomRange(this.rng, 0.8, 1.2),
       wanderIn: randomRange(this.rng, 0, childDef.wanderChangeSeconds),

@@ -249,6 +249,43 @@ a glance and isn't lost on a colourblind player. This is a default, not a rule �
 can override its own size and shape in `pathogens.ts`, so hand-drawn sprites win over the
 formula.
 
+### Shape
+
+Colour is one axis. **Shape** is the other, and it is a completely different idea: colour says
+how nasty a bacterium is, shape says *how it has to be fought*. The two are independent — any
+colour can come as any shape.
+
+| | | |
+| --- | --- | --- |
+| **rod** | one capsule-shaped body | kill it and it is gone |
+| **cocci** | little round balls stuck together in a clump | one ball comes off at a time |
+
+A cocci of a given colour hurts a body cell at **exactly the same rate** as the rod of that
+colour. Nothing about it is nastier per second. What it is, is *work*: a blue cocci is two
+mouthfuls where a blue rod is one, and a macrophage has to digest the first before it can come
+back for the second. Measured: one macrophage clears a blue rod in 0.4 seconds and a blue
+cocci in 2.6.
+
+**Ball count comes off the colour ladder** — two at blue, one more per step, so purple is a
+clump of seven. That is the one place where colour and shape meet, and it means a cocci
+infection left to drift gets harder in a way a rod infection doesn't.
+
+To pay for that they are **slow and tough**: half a rod's speed, slower than everything that
+hunts them, three health per ball, and they divide every 30 seconds instead of 20. So the
+problem a cocci sets is never *catching* one — it is finishing one off before the next
+arrives. A slow enemy you can't kill quickly turns out to be worse than a fast one you can.
+
+Three things can take a ball off, and they are deliberately not the same:
+
+- a **macrophage's bite** takes one whole ball, then it is busy digesting
+- a **granule** takes one whole ball, however much life that ball had left — which makes the
+  neutrophil the fast answer to a clump, at the cost of throwing poison round your own tissue
+- a **NET** wears balls down gradually, and damage never carries from one ball to the next, so
+  a clump held in a web comes apart one ball at a time
+
+Balls are knocked off in the drawing as well as the numbers: the clump visibly shrinks, and a
+half-eaten one is a smaller target than a whole one.
+
 ### How each family works
 
 **Bacteria** — live in the tissue and multiply in place. Kill body cells directly by contact.
@@ -321,6 +358,11 @@ wound makes the threat immediate, putting it far from a vessel makes it hard to 
 
 - **Level 1 — a cut in the skin.** Bacteria get in through the wound. Neutrophils and
   macrophages only. Wide openings, close to the cut, so reinforcement is forgiving.
+- **Level 2 — the graze.** A scrape, so it is torn open in **two** places rather than one, both
+  shallow — wide for their depth, the opposite shape to the cut. Both vessels sit low, well
+  away from both scratches, so nothing you recruit arrives where the trouble is. This is where
+  **cocci** turn up, and the level is built round them: they are slow enough that the walk up
+  from the vessels is survivable, which is the whole reason the new enemy is the slow one.
 - Later levels add colours, then viruses, then both at once (**pneumonia in the lungs** —
   bacteria and viruses together), then the parasite levels.
 
@@ -487,6 +529,13 @@ in dead body cells, and that is exactly what happens in a real infection.
 - **You win by clearing the infection** — all waves arrived, nothing left alive — and the
   banner says how much tissue you saved. Losing is checked first, because tissue with nothing
   alive left in it has not been saved by the infection also being over.
+- **The level select lists whatever is in `levels.ts`**, so a new level appears the moment it
+  exists — there is nothing to register. Each card draws the level's **real layout** shrunk
+  down, built from its own seed, so the picture cannot drift out of date when a level is
+  retuned and nobody has to draw thumbnails.
+- **A level ends with Try again / Choose level.** Without them the select screen would be a
+  one-way door. They live in `LevelScene` rather than the HUD, because that is the scene that
+  knows which level is being played and so is the one that can start another.
 - **The colour ladder is blue → yellow → red → green → orange → purple**, alternating between
   faster and harder-hitting, with green's dodging in the middle. Toughness is deliberately not
   part of it: every colour dies to one granule, so a nastier bacterium is more dangerous
@@ -601,3 +650,35 @@ in dead body cells, and that is exactly what happens in a real infection.
 - The cut is **130 wide by 80 deep**, down from 150 by 42. A gash wants to be deeper than it
   is wide or it reads as a shallow bay. Checked against the tissue near the wound (unchanged
   at 13 body cells within 300px) and against both balance canaries.
+
+- **Cocci: shape as a second axis, separate from colour.** A pathogen now has a `shape` as
+  well as a colour. Colour was already carrying difficulty, powers and antigen all at once,
+  and toughness is deliberately *not* on that ladder — so "a tanky bacterium" had nowhere to
+  live. Shape is where it went. A cocci is a clump of balls that comes apart **one ball at a
+  time**, and it hits exactly as hard as the rod of its colour: the difficulty is entirely in
+  how long it takes to be rid of, never in how much damage it does. See §5 *Shape*.
+- **Ball count comes off the colour ladder** — two at blue, one more per step. It is the only
+  place shape and colour touch, and it is what stops cocci being a one-note enemy: a clump
+  that drifts a shade doesn't just get faster, it gets bigger.
+- **One clump, one geometry.** `ballOffsets` in `pathogens.ts` packs the balls the way circles
+  pack — one in the middle, up to six round it, each exactly touching its neighbours — and the
+  drawing, the click target, the granule hit test and the macrophage's reach all measure the
+  same points. So a clump you can see three balls on is a three-ball clump, and it really does
+  become a smaller target as they come off. Same trick as the wound: one shape, drawn and
+  simulated from the same numbers.
+- **The three ways to take a ball are deliberately different.** A bite and a granule each take
+  one whole ball outright; a NET wears them down, and damage never carries from one ball to
+  the next. That makes the neutrophil the fast answer to a clump and the macrophage the slow
+  reliable one, which is a choice worth having.
+- **Mutation holds shape fixed.** Drift moves colour, never shape — a rod waking up as a clump
+  of balls is not a small change. A blue cocci can only ever become a yellow cocci.
+- **A chase order now stands until the whole clump is dead**, not until the cell has eaten
+  something. Sending a macrophage at a clump and having it wander off with the job half done
+  read as the order being ignored.
+- **Level 2 is the graze**, built round the new enemy: two shallow scratches instead of one
+  deep cut, both vessels far from both of them. Measured against level 1 — left alone the cut
+  is lost at 119s and the graze at 246s; played greedily by a script that only ever chases the
+  nearest bacterium, the cut is won at 114s with 45/50 tissue and the graze at 169s with
+  50/56. So it is a comparable step rather than a wall, and the obvious levers if it wants to
+  be harder are the wave counts, the 30-second cocci division timer, and the third starting
+  macrophage.

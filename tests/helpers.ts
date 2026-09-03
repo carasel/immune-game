@@ -1,4 +1,5 @@
 import { theCut, TISSUE_VIEW, type LevelDef, type StartingCellDef } from '../src/content/levels'
+import { findPathogen } from '../src/content/pathogens'
 import type { ImmuneCell } from '../src/sim/immuneCells'
 import type { Pathogen } from '../src/sim/pathogens'
 import { TICKS_PER_SECOND, World } from '../src/sim/world'
@@ -89,15 +90,28 @@ export function leaveDebris(
   }
 }
 
-/** Drops a bacterium at an exact spot, with division and wandering switched off. */
-export function placeBacterium(world: World, x: number, y: number): Pathogen {
+/**
+ * Drops a bacterium at an exact spot, with division and wandering switched off.
+ * Blue rods unless you name something else — `placeBacterium(world, x, y,
+ * 'blue-cocci')` puts a whole clump there.
+ */
+export function placeBacterium(
+  world: World,
+  x: number,
+  y: number,
+  defId = 'blue-bacteria',
+): Pathogen {
+  const def = findPathogen(defId)
+  if (!def) throw new Error(`no pathogen called ${defId}`)
+
   const bacterium: Pathogen = {
     id: 90000 + world.pathogens.length,
-    defId: 'blue-bacteria',
+    defId,
     x,
     y,
     angle: 0,
-    health: 3,
+    health: def.health,
+    balls: def.balls,
     alive: true,
     // Far enough away that neither fires during a test.
     divideIn: Number.MAX_SAFE_INTEGER,

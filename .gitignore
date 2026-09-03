@@ -4,3 +4,6 @@ dist/
 *.local
 .vite/
 .claude/
+
+# Throwaway scripts for poking at the simulation. See `npm run explore`.
+scratch/
