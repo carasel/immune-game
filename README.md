@@ -146,13 +146,20 @@ Day 2 has started. The macrophage is in:
       slow, tough, and as many balls as their colour is far up the ladder
 - [x] Level 2, the graze: two shallow scratches instead of one deep cut, both
       vessels far from both of them, and cocci coming in through them
+- [x] The rest of the colour ladder — green runs away from immune cells, orange
+      is faster again, purple hits harder again, in both shapes. A green rod
+      drops its dinner to run and no macrophage can catch it; a green clump is
+      too slow for that and stays to eat instead
 
 Left on the Day 2 list:
 
 - [ ] Tuning the numbers until it feels right — the last and best bit
+- [ ] Deciding how a player is ever supposed to *meet* green. Mutation drifts
+      one step at a time, up as often as down, at 1 division in 10 — so blue to
+      green is about 90 divisions of one unbroken lineage. Half an hour of
+      fighting. Either `mutationChance` goes up, or a level sends something
+      other than blue
 
 After that, and not part of Day 2:
 
-- [ ] Green bacteria, which run away from immune cells — then orange and purple
-      behind them
 - [ ] Narrow vessels as bottlenecks — recruits queue instead of arriving at once

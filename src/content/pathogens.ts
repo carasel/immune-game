@@ -82,6 +82,29 @@ interface PathogenBase {
   divideEverySeconds: number
   /** How often it picks a new direction while wandering. */
   wanderChangeSeconds: number
+
+  // --- running away ---
+  /**
+   * Green's power: how close an immune cell has to get before this turns round
+   * and swims directly away from it, in pixels. Leave it out and it never runs,
+   * which is everything up to red.
+   *
+   * 120 is chosen to sit inside a macrophage's 150 sight and a neutrophil's
+   * 190, so you see the chase start before the running does, and outside a
+   * granule's 90 throw, so a neutrophil still has to close the gap to shoot.
+   */
+  fleeRange?: number
+  /**
+   * Whether fear beats hunger: true and it drops a body cell it was part-way
+   * through eating in order to run, false and it commits to the meal once its
+   * teeth are in. Ignored when `fleeRange` is unset.
+   *
+   * Rods run. At a rod's speed running actually works, so a coward rod is
+   * genuinely hard to pin down. Cocci don't: a clump crawls, so running could
+   * only ever delay the inevitable, and a clump that carries on eating while
+   * you take it apart ball by ball is the more frightening thing.
+   */
+  fleeWhileEating?: boolean
 }
 
 /** A rod: one rounded rectangle, swimming along its long axis. */
@@ -217,6 +240,65 @@ export const redBacteria: RodDef = {
 }
 
 /**
+ * Tier 4: as quick and as hard-hitting as red, and a coward with it. It watches
+ * for immune cells and swims straight away from any that comes within 120px,
+ * dropping a body cell it was eating to do it.
+ *
+ * At 30 against a macrophage's 16 that means one macrophage can never run a
+ * green down in the open — it herds one at best. A neutrophil's 34 can, but
+ * only just, so a green drags your fast cells all over the map while the rest
+ * of the infection gets on with it undisturbed. That is the point of the
+ * colour: the answer to a green is cutting it off, not chasing it.
+ */
+export const greenBacteria: RodDef = {
+  ...redBacteria,
+  id: 'green-bacteria',
+  name: 'Green bacteria',
+  colour: 'green',
+
+  length: 29,
+  width: 18,
+
+  fleeRange: 120,
+  fleeWhileEating: true,
+}
+
+/**
+ * Tier 5: a green with the legs on everything. 38 beats a neutrophil's 34, so
+ * once an orange has seen you coming nothing in the game can catch it in a
+ * straight line. It has to be cornered against the edge of the tissue, shot
+ * with a granule, or caught in a NET.
+ */
+export const orangeBacteria: RodDef = {
+  ...greenBacteria,
+  id: 'orange-bacteria',
+  name: 'Orange bacteria',
+  colour: 'orange',
+
+  length: 30,
+  width: 19,
+
+  speed: 38,
+}
+
+/**
+ * Tier 6: the nastiest thing in the game. Everything an orange has, and it eats
+ * through a body cell in about 5 seconds.
+ */
+export const purpleBacteria: RodDef = {
+  ...orangeBacteria,
+  id: 'purple-bacteria',
+  name: 'Purple bacteria',
+  colour: 'purple',
+
+  length: 31,
+  width: 20,
+
+  /** 0.2 means about 5 seconds per body cell, against red's 7 and blue's 11. */
+  damagePerSecond: 0.2,
+}
+
+/**
  * COCCI
  * -----
  * The tanks. Slow, tough, and made of balls that come off one at a time. A
@@ -286,19 +368,92 @@ export const redCocci: CocciDef = {
   damagePerSecond: 0.14,
 }
 
+const GREEN_COCCI_BALLS = ballsForColour('green')
+
 /**
- * Every pathogen in the game. Green, orange and purple are still to come: green
- * needs it to run away from immune cells, which is behaviour rather than
- * numbers, and the two after it sit on the far side of green so nothing can
- * mutate that far yet.
+ * Tier 4 cocci: five balls, and it shies away from immune cells — but only
+ * while it hasn't got its teeth into anything. Once it reaches tissue it
+ * commits and keeps eating, because at half a rod's speed running was never
+ * going to save a clump anyway.
+ *
+ * So green means two quite different things depending on shape. A green rod is
+ * the one you can't catch; a green cocci is the one that can't be driven off
+ * the tissue it has already reached.
+ */
+export const greenCocci: CocciDef = {
+  ...redCocci,
+  id: 'green-cocci',
+  name: 'Green cocci',
+  colour: 'green',
+
+  ballRadius: 9.5,
+  balls: GREEN_COCCI_BALLS,
+  radius: cocciRadius(GREEN_COCCI_BALLS, 9.5),
+
+  fleeRange: 120,
+  fleeWhileEating: false,
+}
+
+const ORANGE_COCCI_BALLS = ballsForColour('orange')
+
+/**
+ * Tier 5 cocci: six balls, and half an orange rod's 38, the way every cocci is
+ * half its rod. Worth watching — 19 is the first cocci speed to beat a
+ * macrophage's 16, so from orange up a clump out in the open can no longer be
+ * run down by the cell whose whole job is eating it.
+ */
+export const orangeCocci: CocciDef = {
+  ...greenCocci,
+  id: 'orange-cocci',
+  name: 'Orange cocci',
+  colour: 'orange',
+
+  ballRadius: 10,
+  balls: ORANGE_COCCI_BALLS,
+  radius: cocciRadius(ORANGE_COCCI_BALLS, 10),
+
+  speed: 19,
+}
+
+const PURPLE_COCCI_BALLS = ballsForColour('purple')
+
+/**
+ * Tier 6 cocci: the full flower of seven balls, hitting as hard as a purple
+ * rod. Seven separate mouthfuls at three health each, and all seven of them
+ * eating your tissue at 0.2 a second while you work through them.
+ */
+export const purpleCocci: CocciDef = {
+  ...orangeCocci,
+  id: 'purple-cocci',
+  name: 'Purple cocci',
+  colour: 'purple',
+
+  ballRadius: 10.5,
+  balls: PURPLE_COCCI_BALLS,
+  radius: cocciRadius(PURPLE_COCCI_BALLS, 10.5),
+
+  /** Exactly a purple rod's. */
+  damagePerSecond: 0.2,
+}
+
+/**
+ * Every pathogen in the game: the whole colour ladder, in both shapes. Levels
+ * only ever send blue, so everything past it is something an infection becomes
+ * when you let it run rather than something a level hands you.
  */
 export const pathogens: PathogenDef[] = [
   blueBacteria,
   yellowBacteria,
   redBacteria,
+  greenBacteria,
+  orangeBacteria,
+  purpleBacteria,
   blueCocci,
   yellowCocci,
   redCocci,
+  greenCocci,
+  orangeCocci,
+  purpleCocci,
 ]
 
 const byId = new Map(pathogens.map((def) => [def.id, def]))
@@ -316,9 +471,9 @@ export function findPathogen(id: string): PathogenDef | undefined {
  * a small change to a bacterium, and a rod waking up as a clump of balls is
  * not. A blue cocci can only ever become a yellow cocci.
  *
- * Colours with no def yet simply aren't options, so the ladder can be filled in
- * from either end without anything here changing. A blue can only become a
- * yellow today; once green exists, a red will be able to become one.
+ * Colours with no def simply aren't options, which is what kept this working
+ * while the ladder was half built. Now that it is full, only the two ends are
+ * one-way: a blue can only go up, and a purple can only come back down.
  */
 export function mutationsOf(def: PathogenDef): PathogenDef[] {
   const step = pathogenColours.indexOf(def.colour)

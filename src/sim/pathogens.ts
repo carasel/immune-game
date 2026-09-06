@@ -1,5 +1,6 @@
 import { cocciRadius, type PathogenDef } from '../content/pathogens'
 import { clamp, distance, type Size } from './geometry'
+import type { ImmuneCell } from './immuneCells'
 import { isTrapped, type Net } from './nets'
 import type { Rng } from './rng'
 import type { BodyCell } from './tissue'
@@ -33,6 +34,8 @@ export interface PathogenContext {
   /** Seconds this tick. */
   dt: number
   bodyCells: BodyCell[]
+  /** What a fleeing pathogen is running from. Ignored by everything else. */
+  immuneCells: ImmuneCell[]
   bounds: Size
   rng: Rng
   /** Webs on the ground. Anything inside one is stuck fast. */
@@ -96,6 +99,7 @@ export function loseBall(pathogen: Pathogen, def: PathogenDef): void {
  *
  * Bacteria hunt by sight: if a living body cell is within vision range they go
  * straight for it, and eat into it once they touch. Otherwise they wander.
+ * From green up they also watch their own backs — see `fleeRange`.
  *
  * Bacteria overlap everything — each other, body cells, the vessels — so there
  * is no collision to resolve here. They just swim.
@@ -110,12 +114,27 @@ export function updatePathogen(
   if (isTrapped(pathogen, ctx.nets)) return
 
   const target = nearestBodyCellInRange(ctx.bodyCells, pathogen, def.visionRange)
+  const biting =
+    target !== undefined &&
+    distance(pathogen.x, pathogen.y, target.x, target.y) <=
+      target.radius + pathogenRadius(pathogen, def)
+
+  // Fear or hunger, for the colours that have the choice. A green rod is a
+  // coward and drops its meal to run; a green cocci crawls, so running could
+  // only ever delay things — it commits the moment its teeth are in and carries
+  // on eating while you take it apart.
+  const hunter = nearestHunterInRange(ctx.immuneCells, pathogen, def.fleeRange ?? 0)
+
+  if (hunter && (!biting || def.fleeWhileEating)) {
+    pathogen.angle = Math.atan2(pathogen.y - hunter.y, pathogen.x - hunter.x)
+    swim(pathogen, def, ctx)
+    return
+  }
 
   if (target) {
-    const gap = distance(pathogen.x, pathogen.y, target.x, target.y)
     pathogen.angle = Math.atan2(target.y - pathogen.y, target.x - pathogen.x)
 
-    if (gap <= target.radius + pathogenRadius(pathogen, def)) {
+    if (biting) {
       // Close enough to eat into it. Stop moving and do damage.
       target.health -= def.damagePerSecond * ctx.dt
 
@@ -161,6 +180,38 @@ function swim(pathogen: Pathogen, def: PathogenDef, ctx: PathogenContext): void 
 
   pathogen.x = x
   pathogen.y = y
+}
+
+/**
+ * The immune cell a nervous bacterium is most worried about: the nearest living
+ * one inside `range`, or nothing at all when `range` is 0, which is every
+ * colour up to red.
+ *
+ * A cell part-way through digesting still counts. It can't chase and it can't
+ * bite, but a bacterium has no way of knowing that, and a green that parked
+ * itself against a full macrophage would read as a bug rather than as nerve.
+ */
+function nearestHunterInRange(
+  immuneCells: ImmuneCell[],
+  pathogen: Pathogen,
+  range: number,
+): ImmuneCell | undefined {
+  if (range <= 0) return undefined
+
+  let best: ImmuneCell | undefined
+  let bestDistance = range
+
+  for (const cell of immuneCells) {
+    if (!cell.alive) continue
+
+    const away = distance(pathogen.x, pathogen.y, cell.x, cell.y)
+    if (away < bestDistance) {
+      bestDistance = away
+      best = cell
+    }
+  }
+
+  return best
 }
 
 function nearestBodyCellInRange(

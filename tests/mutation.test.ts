@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { balance } from '../src/content/balance'
 import {
   blueBacteria,
+  greenBacteria,
   mutationsOf,
+  orangeBacteria,
   pathogenColours,
   pathogens,
+  purpleBacteria,
   redBacteria,
   yellowBacteria,
 } from '../src/content/pathogens'
@@ -26,9 +29,45 @@ describe('the colour ladder', () => {
     expect(redBacteria.damagePerSecond).toBeGreaterThan(yellowBacteria.damagePerSecond)
   })
 
+  it('makes green a red that runs away, and nothing else', () => {
+    expect(greenBacteria.speed).toBe(redBacteria.speed)
+    expect(greenBacteria.damagePerSecond).toBe(redBacteria.damagePerSecond)
+    expect(greenBacteria.fleeRange).toBeGreaterThan(0)
+    expect(redBacteria.fleeRange).toBeUndefined()
+  })
+
+  it('makes orange a green that is faster again', () => {
+    expect(orangeBacteria.speed).toBeGreaterThan(greenBacteria.speed)
+    expect(orangeBacteria.damagePerSecond).toBe(greenBacteria.damagePerSecond)
+    expect(orangeBacteria.fleeRange).toBe(greenBacteria.fleeRange)
+  })
+
+  it('makes purple an orange that hits harder again', () => {
+    expect(purpleBacteria.damagePerSecond).toBeGreaterThan(orangeBacteria.damagePerSecond)
+    expect(purpleBacteria.speed).toBe(orangeBacteria.speed)
+    expect(purpleBacteria.fleeRange).toBe(orangeBacteria.fleeRange)
+  })
+
+  it('keeps toughness off the ladder, so a nastier one is not a spongier one', () => {
+    for (const def of pathogens) {
+      expect(def.health).toBe(blueBacteria.health)
+    }
+  })
+
   it('draws a nastier one bigger, so it reads at a glance', () => {
-    expect(yellowBacteria.length).toBeGreaterThan(blueBacteria.length)
-    expect(redBacteria.length).toBeGreaterThan(yellowBacteria.length)
+    const rods = [
+      blueBacteria,
+      yellowBacteria,
+      redBacteria,
+      greenBacteria,
+      orangeBacteria,
+      purpleBacteria,
+    ]
+
+    for (let step = 1; step < rods.length; step++) {
+      expect(rods[step].length).toBeGreaterThan(rods[step - 1].length)
+      expect(rods[step].width).toBeGreaterThan(rods[step - 1].width)
+    }
   })
 })
 
@@ -38,9 +77,15 @@ describe('which colours something can drift to', () => {
     expect(mutationsOf(yellowBacteria)).toEqual([blueBacteria, redBacteria])
   })
 
-  it('offers nothing beyond the colours that exist yet', () => {
-    // Red's other neighbour is green, which has no def, so it can only go back.
-    expect(mutationsOf(redBacteria)).toEqual([yellowBacteria])
+  it('offers both ways along the middle of the ladder', () => {
+    expect(mutationsOf(redBacteria)).toEqual([yellowBacteria, greenBacteria])
+    expect(mutationsOf(greenBacteria)).toEqual([redBacteria, orangeBacteria])
+  })
+
+  it('leaves only the two ends of the ladder one-way', () => {
+    // Nothing sits below blue or above purple, so the ends can only turn inwards.
+    expect(mutationsOf(blueBacteria)).toEqual([yellowBacteria])
+    expect(mutationsOf(purpleBacteria)).toEqual([orangeBacteria])
   })
 
   it('never offers a jump of two colours', () => {

@@ -802,6 +802,7 @@ export class World {
     const context = {
       dt: SECONDS_PER_TICK,
       bodyCells: this.bodyCells,
+      immuneCells: this.immuneCells,
       bounds: this.bounds,
       rng: this.rng,
       nets: this.nets,

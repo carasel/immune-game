@@ -443,8 +443,8 @@ death spiral is already tense, the design works.*
 
 ### After that, roughly in order
 
-Inflammation → remaining bacteria colours → **degranulation and NETs** → viruses and infected
-cells → natural killer cells → dendritic cells and adaptive immunity within a level →
+Inflammation → ~~remaining bacteria colours~~ → ~~degranulation and NETs~~ → **viruses and infected
+cells** → natural killer cells → dendritic cells and adaptive immunity within a level →
 antibodies and complement as particle swarms → mast cell (accurately) → memory cells, save
 file and campaign → eosinophils → threadworm and hookworm levels.
 
@@ -545,8 +545,38 @@ in dead body cells, and that is exactly what happens in a real infection.
 - **Mutation is the only way a new colour appears.** Waves bring blue and nothing else; a
   bacterium that gets to divide has a 1 in 10 chance of coming out one shade along, up or
   down. So colours are something an infection *becomes* when you let it run, not something a
-  level hands you. Blue and yellow and red exist; green needs it to run away from immune
-  cells, which is behaviour rather than numbers, and orange and purple sit behind green.
+  level hands you. All six colours now exist, in both shapes.
+- **Green runs away, and what that means depends on its shape.** Green is the first rung that
+  is behaviour rather than numbers: it watches for immune cells and swims directly away from
+  any within 120px. 120 sits inside a macrophage's 150 sight and a neutrophil's 190, so you
+  watch the chase start before the running does, and outside a granule's 90 throw, so a
+  neutrophil still has to close to shoot.
+  - A green **rod** is a coward: it drops a body cell it was part-way through eating in order
+    to run. At 30 against a macrophage's 16, one macrophage can never catch a green in the
+    open — it herds one at best. A neutrophil's 34 can, but only just. So the answer to a
+    green is cutting it off, not chasing it.
+  - A green **cocci** commits. It shies away while wandering, but once its teeth are in it
+    stays and eats. A clump moves at 15 against a macrophage's 16, so running loses it ground
+    anyway — a clump that won't be driven off the tissue it reached is the more frightening
+    thing, and it keeps the shape axis meaning something at every colour.
+  - Two fields in `pathogens.ts` carry all of it: `fleeRange`, and `fleeWhileEating` for
+    whether fear beats hunger. Left out, a pathogen never runs, which is everything up to red.
+- **Orange and purple are numbers on top of green.** Orange goes to 38, which beats a
+  neutrophil's 34, so nothing in the game can run an orange down in a straight line — it has
+  to be cornered, granuled or netted. Purple goes to 0.2 damage a second, about 5 seconds per
+  body cell against blue's 11. Both keep 3 health, because toughness stays off the ladder.
+  Worth watching: an orange cocci's 19 is the first cocci speed to beat a macrophage's 16, so
+  from orange up a clump in the open can no longer be run down by the cell whose whole job is
+  eating it.
+- **Open question: nothing will ever meet a green.** Drift is one step at a time, up as often
+  as down, on one division in ten, so blue → green is a reflecting random walk needing about
+  nine mutations — roughly 90 divisions of one unbroken lineage, half an hour of continuous
+  fighting. Measured it: thirty simulated minutes of stalemate reached green once in three
+  seeds and never reached orange. And a runaway infection is worse, not better, because
+  `maxPathogens` freezes divisions dead at 250 and the ladder stops climbing at red. So the
+  three new colours are built, tuned and tested, and unreachable in play. The fix is a balance
+  decision, not a code one: raise `mutationChance`, or let a level send something other than
+  blue.
 - **Level 1 is winnable on the cells you start with, but only if you play it.** Send all three
   to the cut at the start and they meet each wave as it arrives: won at 2:14 with 43 of 50
   body cells, nothing recruited. Left alone the tissue is gone by 1:56. That gap between the
