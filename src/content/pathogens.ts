@@ -41,7 +41,8 @@ export type PathogenColour = (typeof pathogenColours)[number]
 /**
  * What a bacterium is built like.
  *
- *   rod    one capsule-shaped body. Kill it and it is gone.
+ *   rod    one capsule-shaped body, with a wiggly tail behind it. Kill it and
+ *          it is gone.
  *   cocci  little round balls stuck together in a clump. Only ONE ball ever
  *          comes off at a time, so a clump has to be taken apart piece by
  *          piece while the rest of it carries on eating your tissue.
@@ -114,6 +115,8 @@ export interface RodDef extends PathogenBase {
   length: number
   /** ...and this wide. */
   width: number
+  /** ...with a wiggly tail trailing this far off the back of it. */
+  tailLength: number
   /** A rod is one single body, so this is always 1. */
   balls: 1
 }
@@ -196,6 +199,8 @@ export const blueBacteria: RodDef = {
 
   length: 26,
   width: 15,
+  /** About two thirds of the body, which is enough to read as a tail at this size. */
+  tailLength: 17,
   balls: 1,
 
   radius: 10,
@@ -221,6 +226,7 @@ export const yellowBacteria: RodDef = {
   // A little bigger, so a nastier one reads as nastier at a glance.
   length: 27,
   width: 16,
+  tailLength: 18,
 
   speed: 30,
 }
@@ -234,6 +240,7 @@ export const redBacteria: RodDef = {
 
   length: 28,
   width: 17,
+  tailLength: 19,
 
   /** 0.14 means it takes about 7 seconds to kill one body cell, against blue's 11. */
   damagePerSecond: 0.14,
@@ -258,6 +265,7 @@ export const greenBacteria: RodDef = {
 
   length: 29,
   width: 18,
+  tailLength: 20,
 
   fleeRange: 120,
   fleeWhileEating: true,
@@ -277,6 +285,7 @@ export const orangeBacteria: RodDef = {
 
   length: 30,
   width: 19,
+  tailLength: 21,
 
   speed: 38,
 }
@@ -293,6 +302,7 @@ export const purpleBacteria: RodDef = {
 
   length: 31,
   width: 20,
+  tailLength: 22,
 
   /** 0.2 means about 5 seconds per body cell, against red's 7 and blue's 11. */
   damagePerSecond: 0.2,

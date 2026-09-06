@@ -2,7 +2,7 @@ import type Phaser from 'phaser'
 import { macrophage, type ImmuneCellDef } from '../content/cells'
 import { blueBacteria } from '../content/pathogens'
 import { immunePalette, palette, pathogenPalette } from './palette'
-import { cellOutline, insideCell } from './shapes'
+import { cellOutline, insideCell, rodTail, ROD_TAIL_ROOT, rodTailShape } from './shapes'
 
 /**
  * Little pictures of the things in the game, for the HUD.
@@ -99,7 +99,11 @@ export function drawMacrophageIcon(
   drawImmuneCellIcon(graphics, x, y, size, macrophage)
 }
 
-/** A bacterium: the blue rod, at the proportions it is drawn in the tissue. */
+/**
+ * A bacterium: the blue rod, tail and all, at the proportions it is drawn in
+ * the tissue. The tail is held still here — one frozen wiggle, from the same
+ * `rodTail` that animates the real ones.
+ */
 export function drawBacteriumIcon(
   graphics: Phaser.GameObjects.Graphics,
   x: number,
@@ -109,12 +113,27 @@ export function drawBacteriumIcon(
   const colour = pathogenPalette[blueBacteria.colour]
 
   const length = size * 2
-  const width = length * (blueBacteria.width / blueBacteria.length)
+  const scale = length / blueBacteria.length
+  const width = blueBacteria.width * scale
+  const tail = blueBacteria.tailLength * scale
+
+  // The tail hangs off one end, so the body sits forward of the middle to leave
+  // room for it — the same nudge a lopsided immune cell gets above.
+  const centreX = x + tail / 2
+
+  // Tail first, so its root vanishes under the body.
+  graphics.lineStyle(1.5, colour.edge, 1)
+  graphics.strokePoints(
+    rodTail(length * ROD_TAIL_ROOT, rodTailShape(tail), 0).map((point) => ({
+      x: centreX + point.x,
+      y: y + point.y,
+    })),
+  )
 
   graphics.fillStyle(colour.fill, 1)
-  graphics.fillRoundedRect(x - length / 2, y - width / 2, length, width, width * 0.36)
+  graphics.fillRoundedRect(centreX - length / 2, y - width / 2, length, width, width * 0.36)
 
   graphics.lineStyle(1.5, colour.edge, 1)
-  graphics.strokeRoundedRect(x - length / 2, y - width / 2, length, width, width * 0.36)
+  graphics.strokeRoundedRect(centreX - length / 2, y - width / 2, length, width, width * 0.36)
 }
 

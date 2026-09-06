@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { macrophage, neutrophil } from '../src/content/cells'
-import { cellOutline, insideCell } from '../src/render/shapes'
+import {
+  blueBacteria,
+  pathogenColours,
+  pathogens,
+  type RodDef,
+} from '../src/content/pathogens'
+import { cellOutline, insideCell, ROD_TAIL_ROOT, rodTail, rodTailShape } from '../src/render/shapes'
 
 /**
- * The cell outlines are drawn by the same code on the map and in the HUD, so
- * they are worth checking. Nothing here needs Phaser — it is all arithmetic.
+ * The cell outlines and the rod tails are drawn by the same code on the map and
+ * in the HUD, so they are worth checking. Nothing here needs Phaser — it is all
+ * arithmetic.
  */
 
 const shapeOf = (def: typeof macrophage) => ({
@@ -108,5 +115,86 @@ describe('points inside a cell', () => {
 
     expect(facingDown.x).toBeCloseTo(100, 6)
     expect(facingDown.y).toBeLessThan(100)
+  })
+})
+
+describe('a rod bacterium tail', () => {
+  const shape = rodTailShape(blueBacteria.tailLength)
+  const root = blueBacteria.length * ROD_TAIL_ROOT
+
+  it('starts inside the body and trails off the back', () => {
+    const points = rodTail(root, shape, 0)
+
+    // The rod faces along +x, so its tail runs off towards -x.
+    expect(points[0].x).toBeCloseTo(-root, 6)
+    expect(points[0].y).toBeCloseTo(0, 6)
+    expect(points[points.length - 1].x).toBeCloseTo(-root - blueBacteria.tailLength, 6)
+
+    // The root is buried: behind the middle of the rod, but still inside it, so
+    // the join never pokes out from under the body.
+    expect(root).toBeGreaterThan(0)
+    expect(root).toBeLessThan(blueBacteria.length / 2)
+  })
+
+  it('is pinned at the root and freer the nearer the tip, at any phase', () => {
+    for (const phase of [0, 1, 2, 3, 4, 5, 6]) {
+      const points = rodTail(root, shape, phase)
+
+      // Every point stays inside an envelope that is shut at the root and opens
+      // out to the full wave height at the tip. That is what makes the tail
+      // hinge on the body rather than slide about as a whole.
+      points.forEach((point, i) => {
+        const along = i / (points.length - 1)
+        expect(Math.abs(point.y)).toBeLessThanOrEqual(shape.waveHeight * along + 1e-9)
+      })
+    }
+  })
+
+  it('swings the tip right out to the wave height when the crest reaches it', () => {
+    // The phase that puts a crest exactly at the tip.
+    const points = rodTail(root, shape, shape.waves * Math.PI * 2 - Math.PI / 2)
+
+    expect(Math.abs(points[points.length - 1].y)).toBeCloseTo(shape.waveHeight, 6)
+  })
+
+  it('wiggles: winding the phase on moves the tail, but not its root', () => {
+    const still = rodTail(root, shape, 0)
+    const later = rodTail(root, shape, 0.7)
+
+    // Same skeleton: every point stays exactly as far back as it was.
+    for (let i = 0; i < still.length; i++) {
+      expect(later[i].x).toBeCloseTo(still[i].x, 6)
+    }
+
+    expect(later[0].y).toBeCloseTo(0, 6)
+    expect(later[later.length - 1].y).not.toBeCloseTo(still[still.length - 1].y, 3)
+  })
+
+  it('comes back to where it started after a whole turn of phase', () => {
+    const start = rodTail(root, shape, 0)
+    const round = rodTail(root, shape, Math.PI * 2)
+
+    for (let i = 0; i < start.length; i++) {
+      expect(round[i].y).toBeCloseTo(start[i].y, 6)
+    }
+  })
+
+  it('gives a nastier bacterium a longer tail, the way it gives it a longer body', () => {
+    // Taken off the pathogen list rather than named one by one, so a new colour
+    // is checked the moment it is added.
+    const rods = pathogens
+      .filter((def): def is RodDef => def.shape === 'rod')
+      .sort((a, b) => pathogenColours.indexOf(a.colour) - pathogenColours.indexOf(b.colour))
+
+    expect(rods.map((rod) => rod.colour)).toEqual([...pathogenColours])
+
+    for (let i = 1; i < rods.length; i++) {
+      expect(rods[i].tailLength).toBeGreaterThan(rods[i - 1].tailLength)
+    }
+
+    // Still a tail and not a second body: shorter than the rod it hangs off.
+    for (const rod of rods) {
+      expect(rod.tailLength).toBeLessThan(rod.length)
+    }
   })
 })

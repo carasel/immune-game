@@ -68,3 +68,69 @@ export function insideCell(
     y: y - Math.sin(angle) * shape.radius * back,
   }
 }
+
+/** How a rod's tail is shaped: how far it trails, and how hard it wiggles. */
+export interface TailShape {
+  /** How far behind the body the tip reaches. */
+  length: number
+  /** How far the tip swings either side of straight. */
+  waveHeight: number
+  /** How many full waves fit along the tail at once. */
+  waves: number
+}
+
+/** How many waves are on a tail at once. Under 1 keeps it a wiggle, not a coil. */
+const TAIL_WAVES = 0.85
+
+/** How far the tip swings either side of straight, as a fraction of tail length. */
+const TAIL_SWING = 0.3
+
+/**
+ * How far inside the body a tail is rooted, as a fraction of the body's length.
+ * Just past the middle, so the root is well buried whichever way the wave is
+ * leaning.
+ */
+export const ROD_TAIL_ROOT = 0.35
+
+/** The tail a rod with a tail this long wears. */
+export function rodTailShape(tailLength: number): TailShape {
+  return {
+    length: tailLength,
+    waveHeight: tailLength * TAIL_SWING,
+    waves: TAIL_WAVES,
+  }
+}
+
+/**
+ * A rod's tail: a wiggly whip trailing off its back end.
+ *
+ * The points come back in the rod's own space, with the rod facing along +x, so
+ * the tail runs off to the left and whatever draws it can turn the whole
+ * bacterium as one piece. `root` is how far back the tail starts — tuck it
+ * inside the body and the join disappears under the fill, which is what makes
+ * the tail look like it grows out of the bacterium rather than being stuck on
+ * the end of it.
+ *
+ * The wave gets taller towards the tip, because the root is anchored in the
+ * body and the tip is not. `phase` slides the wave along the tail: wind it up
+ * over time and the wave travels tip-wards, which is the direction a real
+ * flagellum pushes its bacterium along.
+ *
+ * Lives here with the cell outlines so the tail on the HUD's little bacterium
+ * is drawn by the same code as the tails out in the tissue.
+ */
+export function rodTail(root: number, shape: TailShape, phase: number, segments = 14): Vec2[] {
+  const points: Vec2[] = []
+
+  for (let i = 0; i <= segments; i++) {
+    // 0 at the root, 1 at the tip.
+    const along = i / segments
+
+    points.push({
+      x: -root - shape.length * along,
+      y: shape.waveHeight * along * Math.sin(along * shape.waves * Math.PI * 2 - phase),
+    })
+  }
+
+  return points
+}

@@ -129,10 +129,13 @@ export class HudScene extends Phaser.Scene {
       )
     })
 
-    const bacteriaX = IMMUNE_READOUT_X + immuneCells.length * IMMUNE_READOUT_STEP + 4
+    // Further along than the step alone would put it, and its number further
+    // out again: the bacterium is the one icon with a tail, so it is wider than
+    // the immune cells either side of it.
+    const bacteriaX = IMMUNE_READOUT_X + immuneCells.length * IMMUNE_READOUT_STEP + 10
     drawBacteriumIcon(icons, bacteriaX, midY, 10)
     this.bacteriaText = this.add
-      .text(bacteriaX + 18, midY, '', {
+      .text(bacteriaX + 24, midY, '', {
         fontFamily: font.family,
         fontSize: '13px',
         color: textColour.bacteria,

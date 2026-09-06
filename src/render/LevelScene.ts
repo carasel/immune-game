@@ -19,7 +19,7 @@ import {
   pathogenPalette,
   textColour,
 } from './palette'
-import { cellOutline, insideCell } from './shapes'
+import { cellOutline, insideCell, rodTail, ROD_TAIL_ROOT, rodTailShape } from './shapes'
 
 const MS_PER_TICK = 1000 / TICKS_PER_SECOND
 
@@ -40,6 +40,22 @@ const DOUBLE_CLICK_MS = 320
 const GRANULE_LENGTH = 7
 const GRANULE_WIDTH = 4
 
+/**
+ * How a rod's tail wiggles.
+ *
+ * The wiggle is wound off level time rather than wall-clock time, so a paused
+ * game holds still and a fast-forwarded one thrashes. `PER_SECOND` is how many
+ * full waves pass down the tail in one level second.
+ */
+const TAIL_WAVES_PER_SECOND = 2.6
+
+/**
+ * How far apart two bacteria's wiggles are pushed, in radians per id. An
+ * awkward number on purpose: it stops a family of freshly split bacteria from
+ * all beating in time with each other, which looks like a bug.
+ */
+const TAIL_STAGGER = 1.7
+
 export class LevelScene extends Phaser.Scene {
   private world!: World
   private tissueGraphics!: Phaser.GameObjects.Graphics
@@ -56,6 +72,14 @@ export class LevelScene extends Phaser.Scene {
   private outlines = new Map<number, Vec2[]>()
 
   private leftoverMs = 0
+
+  /**
+   * Level time so far, in seconds — real time scaled by the speed control. What
+   * the tail wiggle is wound off, so animation runs at the same speed as the
+   * game it belongs to instead of ignoring the pause button.
+   */
+  private levelSeconds = 0
+
   private levelId = levels[0].id
 
   /** Shown once the level is decided. Built lazily, since most levels don't end. */
@@ -81,6 +105,7 @@ export class LevelScene extends Phaser.Scene {
     this.ending = null
     this.outlines.clear()
     this.leftoverMs = 0
+    this.levelSeconds = 0
     this.forgetLastClick()
 
     const level = findLevel(this.levelId) ?? levels[0]
@@ -133,7 +158,9 @@ export class LevelScene extends Phaser.Scene {
 
     // Clamp the frame so that alt-tabbing away doesn't dump a huge backlog of
     // ticks into one frame.
-    this.leftoverMs += Math.min(deltaMs, 100) * speed
+    const levelMs = Math.min(deltaMs, 100) * speed
+    this.leftoverMs += levelMs
+    this.levelSeconds += levelMs / 1000
 
     let ticks = 0
     while (this.leftoverMs >= MS_PER_TICK && ticks < MAX_TICKS_PER_FRAME) {
@@ -570,10 +597,14 @@ export class LevelScene extends Phaser.Scene {
   /**
    * Bacteria, turned to face the way they are swimming.
    *
-   * Rods are one rounded rectangle. Cocci are a clump of balls, and the clump
-   * is drawn from the same `ballOffsets` the simulation measures them with — so
-   * a clump you can see three balls on really is a three-ball clump, and it
-   * visibly shrinks as they are knocked off.
+   * Rods are one rounded rectangle with a wiggling tail behind it. Cocci are a
+   * clump of balls, and the clump is drawn from the same `ballOffsets` the
+   * simulation measures them with — so a clump you can see three balls on
+   * really is a three-ball clump, and it visibly shrinks as they are knocked
+   * off.
+   *
+   * The tail is decoration only. Nothing in the simulation knows about it, so a
+   * tail can't be bitten and doesn't make a bacterium easier to catch.
    */
   private drawPathogens(): void {
     const graphics = this.pathogenGraphics
@@ -610,6 +641,16 @@ export class LevelScene extends Phaser.Scene {
         const halfLength = def.length / 2
         const halfWidth = def.width / 2
         const corner = def.width * 0.36
+
+        // The tail goes down before the body, so its root ends up hidden under
+        // the fill and the tail looks like it grows out of the bacterium.
+        const phase =
+          this.levelSeconds * TAIL_WAVES_PER_SECOND * Math.PI * 2 + pathogen.id * TAIL_STAGGER
+
+        graphics.lineStyle(1.5, colour.edge, 1)
+        graphics.strokePoints(
+          rodTail(def.length * ROD_TAIL_ROOT, rodTailShape(def.tailLength), phase),
+        )
 
         graphics.fillStyle(colour.fill, 1)
         graphics.fillRoundedRect(-halfLength, -halfWidth, def.length, def.width, corner)
