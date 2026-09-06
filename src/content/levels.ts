@@ -255,14 +255,30 @@ export const theGraze: LevelDef = {
   // One cocci on its own first, with plenty of time to work out what it takes
   // to kill it. Then one at the other scratch, so both are live. The rods
   // arriving later are the contrast: five of them are less work than two clumps.
+  //
+  // Every batch carries one yellow in with it, and which yellow follows the way
+  // in: the scrape brings clumps, the scratch brings rods. So a yellow cocci is
+  // a fourth ball to chip off where you were already chipping, and a yellow rod
+  // is the one thing on the level quick enough to walk away from a macrophage —
+  // the neutrophil down by the right-hand vessel is the answer to both.
+  //
+  // Waves sharing an `at` all arrive together, which is how a scrape batch and
+  // a scratch batch land at the same moment.
   waves: [
     { at: 4, pathogen: 'blue-cocci', count: 1, entry: 'big-scratch' },
+    { at: 4, pathogen: 'yellow-cocci', count: 1, entry: 'big-scratch' },
     { at: 28, pathogen: 'blue-cocci', count: 1, entry: 'small-scratch' },
+    { at: 28, pathogen: 'yellow-bacteria', count: 1, entry: 'small-scratch' },
     { at: 55, pathogen: 'blue-cocci', count: 2, entry: 'big-scratch' },
+    { at: 55, pathogen: 'yellow-cocci', count: 1, entry: 'big-scratch' },
     { at: 85, pathogen: 'blue-bacteria', count: 3, entry: 'small-scratch' },
+    { at: 85, pathogen: 'yellow-bacteria', count: 1, entry: 'small-scratch' },
     { at: 118, pathogen: 'blue-cocci', count: 2, entry: 'big-scratch' },
+    { at: 118, pathogen: 'yellow-cocci', count: 1, entry: 'big-scratch' },
     { at: 118, pathogen: 'blue-bacteria', count: 2, entry: 'small-scratch' },
+    { at: 118, pathogen: 'yellow-bacteria', count: 1, entry: 'small-scratch' },
     { at: 152, pathogen: 'blue-cocci', count: 3, entry: 'big-scratch' },
+    { at: 152, pathogen: 'yellow-cocci', count: 1, entry: 'big-scratch' },
   ],
 }
 

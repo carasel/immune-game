@@ -712,3 +712,16 @@ in dead body cells, and that is exactly what happens in a real infection.
   50/56. So it is a comparable step rather than a wall, and the obvious levers if it wants to
   be harder are the wave counts, the 30-second cocci division timer, and the third starting
   macrophage.
+- **The graze now carries a yellow in every wave**, which was a different lever again: not more
+  of the same, but one thing in each batch that the blue answer doesn't quite work on. Which
+  yellow follows the way in — the scrape brings a yellow cocci, an extra ball to chip off where
+  you were already chipping, and the scratch brings a yellow rod, the fastest thing that
+  arrives on the level and quick enough to walk away from a macrophage. Both point at the same
+  cell: the neutrophil, whose granules take a ball off a clump outright and who is the only
+  thing that outruns a rod. Worth watching now the colour ladder is finished: a yellow that
+  drifts twice is an orange rod at speed 38, which outruns the neutrophil's 34, and the graze
+  is the first level with yellows in it from the start.
+  Re-measured the same way — left alone the graze is now lost at 134s rather than 246s, and
+  played greedily it is still won, at 179s, but with 38/56 tissue rather than 49/56. So the
+  ceiling barely moved and the floor fell out, which is the shape we wanted: it punishes
+  ignoring it much harder than it punishes playing it.
