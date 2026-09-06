@@ -1,6 +1,6 @@
 import { findPathogen } from '../content/pathogens'
 import { distance, type Size } from './geometry'
-import type { Pathogen } from './pathogens'
+import { damagePathogen, loseBall, pathogenRadius, type Pathogen } from './pathogens'
 import type { BodyCell } from './tissue'
 
 /**
@@ -74,10 +74,16 @@ export function updateGranule(granule: Granule, ctx: GranuleContext): void {
 
   const pathogen = pathogenHit(granule, ctx.pathogens)
   if (pathogen) {
-    pathogen.health -= granule.damageToPathogens
-    if (pathogen.health <= 0) {
-      pathogen.health = 0
-      pathogen.alive = false
+    const def = findPathogen(pathogen.defId)
+
+    if (def?.shape === 'cocci') {
+      // A clump loses one whole ball to a hit like this, however much life that
+      // ball had left — but only ever the one. Emptying a neutrophil into a
+      // clump of four takes four granules, and the other three balls are still
+      // eating your tissue the whole time.
+      loseBall(pathogen, def)
+    } else if (def) {
+      damagePathogen(pathogen, def, granule.damageToPathogens)
     }
 
     granule.alive = false
@@ -106,7 +112,9 @@ function pathogenHit(granule: Granule, pathogens: Pathogen[]): Pathogen | undefi
     const def = findPathogen(pathogen.defId)
     if (!def) continue
 
-    if (distance(granule.x, granule.y, pathogen.x, pathogen.y) <= def.radius + GRANULE_RADIUS) {
+    const reach = pathogenRadius(pathogen, def) + GRANULE_RADIUS
+
+    if (distance(granule.x, granule.y, pathogen.x, pathogen.y) <= reach) {
       return pathogen
     }
   }

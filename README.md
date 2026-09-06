@@ -16,10 +16,26 @@ Then open http://localhost:5173. Vite hot-reloads, so saving a file updates the 
 immediately — including the numbers in `src/content/balance.ts`.
 
 ```bash
+npm run check       # types + tests. The one to run constantly
+npm run verify      # types + tests + production build. The one to run before committing
+```
+
+Those two are the whole verification story — if `verify` passes, everything is fine. The
+pieces are still there on their own if you want them:
+
+```bash
 npm test            # run the tests once
 npm run test:watch  # re-run them as you edit
 npm run typecheck   # check the types without building
 npm run build       # typecheck + production build into dist/
+```
+
+To poke at the simulation — how long a level lasts, what a number does, whether an idea
+works — write it in `scratch/explore.ts` and run it. It can import from `src/` exactly the
+way the game does, there is no browser involved, and the folder is gitignored:
+
+```bash
+npm run explore
 ```
 
 ## Where things live
@@ -42,14 +58,19 @@ src/
     openings.ts  turns "a vessel on the left, 30% down" into coordinates
     rng.ts       seeded randomness, so a level always builds the same
   render/      Phaser. Draws what the simulation reports.
-    LevelScene.ts  the tissue, the bacteria and the immune cells
+    MenuScene.ts   the level select: one card per level, with a little map
+    LevelScene.ts  the tissue, the bacteria and the immune cells, and how it ends
     HudScene.ts    energy, cell counts, clock, speed and recruit controls
+    levelMap.ts    shrinks a level's real layout down for the select screen
     shapes.ts      the cell outlines, shared by the map and the HUD
     icons.ts       little pictures of a cell, a macrophage and a bacterium
     palette.ts     colours
-tests/           run with `npm test`. No Phaser, no browser — just the rules.
+tests/           run with `npm run check`. No Phaser, no browser — just the rules.
   helpers.ts       building a world to test, and running it for a few seconds
   economy.ts       … and one file per thing worth not breaking
+tools/
+  explore.mjs      runs scratch/explore.ts through Vite, so it can import from src/
+scratch/         gitignored. Throwaway scripts for `npm run explore`
 ```
 
 Two rules keep this tidy as it grows:
@@ -67,6 +88,9 @@ still quietly make the game easier or harder.
 
 ## Controls
 
+- **Pick a level** on the first screen. Each card shows the level's real layout, shrunk —
+  where the tissue is, where the vessels are, where the wound is
+- When a level ends, **Try again** or **Choose level**
 - **Click a macrophage** to pick it up — it gets a ring round it
 - **Click the ground** to send it there. It ignores everything on the way, but once it is
   nearly there it will break off for any bacterium it can see, then go back to hunting on
@@ -118,6 +142,10 @@ Day 2 has started. The macrophage is in:
 - [x] Click a bacterium to send a cell after that one specifically
 - [x] Mutation: a dividing bacterium can come out one colour along the ladder,
       which is the only way yellow and red ever appear
+- [x] Cocci: clumps of balls stuck together, taken apart one ball at a time —
+      slow, tough, and as many balls as their colour is far up the ladder
+- [x] Level 2, the graze: two shallow scratches instead of one deep cut, both
+      vessels far from both of them, and cocci coming in through them
 
 Left on the Day 2 list:
 

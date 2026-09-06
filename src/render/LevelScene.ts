@@ -1,13 +1,14 @@
 import Phaser from 'phaser'
 import { balance } from '../content/balance'
 import { findImmuneCell } from '../content/cells'
-import { theCut, TISSUE_VIEW } from '../content/levels'
-import { findPathogen } from '../content/pathogens'
+import { findLevel, levels, TISSUE_VIEW, WORLD } from '../content/levels'
+import { ballOffsets, findPathogen } from '../content/pathogens'
 import type { Vec2 } from '../sim/geometry'
 import type { ImmuneCell } from '../sim/immuneCells'
 import type { EdgeRegion } from '../sim/openings'
 import type { BodyCell } from '../sim/tissue'
 import { TICKS_PER_SECOND, World } from '../sim/world'
+import { formatClock } from './format'
 import { HudScene } from './HudScene'
 import {
   font,
@@ -55,6 +56,10 @@ export class LevelScene extends Phaser.Scene {
   private outlines = new Map<number, Vec2[]>()
 
   private leftoverMs = 0
+  private levelId = levels[0].id
+
+  /** Shown once the level is decided. Built lazily, since most levels don't end. */
+  private ending: Phaser.GameObjects.Container | null = null
 
   /** For spotting a double-click: which cell was clicked last, and when. */
   private lastClickedCellId: number | null = null
@@ -64,12 +69,27 @@ export class LevelScene extends Phaser.Scene {
     super('level')
   }
 
+  /** Which level to play. Set by the menu when it starts this scene. */
+  init(data: { levelId?: string }): void {
+    this.levelId = data.levelId ?? levels[0].id
+  }
+
   create(): void {
-    this.world = new World(theCut, TISSUE_VIEW)
+    // Phaser reuses this same object when a scene restarts, so anything held on
+    // `this` survives from the last go and has to be cleared by hand. Without
+    // this, a second attempt at a level would never show its ending again.
+    this.ending = null
+    this.outlines.clear()
+    this.leftoverMs = 0
+    this.forgetLastClick()
+
+    const level = findLevel(this.levelId) ?? levels[0]
+    this.world = new World(level, TISSUE_VIEW)
 
     // The HUD reads these. Registry keeps the two scenes decoupled.
     this.registry.set('world', this.world)
     this.registry.set('speed', balance.timeSpeeds[balance.defaultSpeedIndex])
+    this.registry.set('recruitMenuOpen', false)
 
     this.drawTerrain()
 
@@ -100,9 +120,11 @@ export class LevelScene extends Phaser.Scene {
     this.bindPointer()
 
     // Added here rather than in the game config so it always starts after the
-    // world exists.
+    // world exists. Coming back from the menu it already exists but is stopped.
     if (!this.scene.get('hud')) {
       this.scene.add('hud', HudScene, true)
+    } else if (!this.scene.isActive('hud')) {
+      this.scene.launch('hud')
     }
   }
 
@@ -132,6 +154,96 @@ export class LevelScene extends Phaser.Scene {
     this.drawGranules()
     this.drawImmuneCells()
     this.drawRecruitHighlights(time)
+
+    if (this.world.isOver && !this.ending) this.showEnding()
+  }
+
+  /**
+   * How a level finishes: what happened, and the two things you might want to do
+   * about it. Lives here rather than in the HUD because this scene owns which
+   * level is being played, so it is the one that can start another.
+   */
+  private showEnding(): void {
+    const won = this.world.isWon
+    const middle = TISSUE_VIEW.height / 2
+
+    this.ending = this.add.container(0, 0)
+
+    // Something to read it against. By the time a level ends the tissue is
+    // usually covered in bacteria, and the one thing you want to be legible is
+    // what just happened.
+    this.ending.add(
+      this.add
+        .rectangle(WORLD.width / 2, middle + 6, 600, 200, palette.background, 0.88)
+        .setStrokeStyle(1, palette.hudButtonActive, 0.5),
+    )
+
+    this.ending.add(
+      this.add
+        .text(WORLD.width / 2, middle - 40, won ? 'TISSUE SAVED' : 'TISSUE LOST', {
+          fontFamily: font.family,
+          fontSize: '44px',
+          color: won ? textColour.won : textColour.lost,
+        })
+        .setOrigin(0.5),
+    )
+
+    this.ending.add(
+      this.add
+        .text(WORLD.width / 2, middle, this.endingLine(), {
+          fontFamily: font.family,
+          fontSize: '16px',
+          color: textColour.dim,
+        })
+        .setOrigin(0.5),
+    )
+
+    this.addEndingButton(WORLD.width / 2 - 96, middle + 56, 'Try again', () =>
+      this.scene.restart({ levelId: this.levelId }),
+    )
+    this.addEndingButton(WORLD.width / 2 + 96, middle + 56, 'Choose level', () => {
+      this.scene.stop('hud')
+      this.scene.start('menu')
+    })
+  }
+
+  private endingLine(): string {
+    if (this.world.isWon) {
+      return (
+        `infection cleared in ${formatClock(this.world.wonAtSeconds)} — ` +
+        `${this.world.livingBodyCellCount} of ${this.world.bodyCells.length} body cells made it`
+      )
+    }
+
+    // Which way you lost matters: every body cell eaten is a different failure
+    // from your last cell starving, and they should not read alike.
+    const cause =
+      this.world.lossReason === 'tissue'
+        ? 'every body cell is dead'
+        : 'your last immune cell starved'
+
+    return `${cause} — it held out for ${formatClock(this.world.lostAtSeconds)}`
+  }
+
+  private addEndingButton(x: number, y: number, label: string, onClick: () => void): void {
+    const box = this.add
+      .rectangle(x, y, 160, 34, palette.hudButton)
+      .setStrokeStyle(1, palette.hudButtonActive, 0.7)
+      .setInteractive({ useHandCursor: true })
+
+    const text = this.add
+      .text(x, y, label, {
+        fontFamily: font.family,
+        fontSize: '15px',
+        color: textColour.bright,
+      })
+      .setOrigin(0.5)
+
+    box.on('pointerover', () => box.setFillStyle(palette.hudButtonActive))
+    box.on('pointerout', () => box.setFillStyle(palette.hudButton))
+    box.on('pointerdown', onClick)
+
+    this.ending?.add([box, text])
   }
 
   /**
@@ -455,7 +567,14 @@ export class LevelScene extends Phaser.Scene {
     }
   }
 
-  /** Rod-shaped bacteria: rounded rectangles, turned to face where they swim. */
+  /**
+   * Bacteria, turned to face the way they are swimming.
+   *
+   * Rods are one rounded rectangle. Cocci are a clump of balls, and the clump
+   * is drawn from the same `ballOffsets` the simulation measures them with — so
+   * a clump you can see three balls on really is a three-ball clump, and it
+   * visibly shrinks as they are knocked off.
+   */
   private drawPathogens(): void {
     const graphics = this.pathogenGraphics
     graphics.clear()
@@ -467,19 +586,37 @@ export class LevelScene extends Phaser.Scene {
       if (!def) continue
 
       const colour = pathogenPalette[def.colour]
-      const halfLength = def.length / 2
-      const halfWidth = def.width / 2
-      const corner = def.width * 0.36
 
       graphics.save()
       graphics.translateCanvas(pathogen.x, pathogen.y)
       graphics.rotateCanvas(pathogen.angle)
 
-      graphics.fillStyle(colour.fill, 1)
-      graphics.fillRoundedRect(-halfLength, -halfWidth, def.length, def.width, corner)
+      if (def.shape === 'cocci') {
+        const balls = ballOffsets(pathogen.balls, def.ballRadius)
 
-      graphics.lineStyle(2, colour.edge, 1)
-      graphics.strokeRoundedRect(-halfLength, -halfWidth, def.length, def.width, corner)
+        // Every ball is filled before any of them is outlined, so the outlines
+        // sit on top of the whole clump and it reads as one thing made of balls
+        // rather than a stack of separate circles.
+        graphics.fillStyle(colour.fill, 1)
+        for (const ball of balls) {
+          graphics.fillCircle(ball.x, ball.y, def.ballRadius)
+        }
+
+        graphics.lineStyle(2, colour.edge, 1)
+        for (const ball of balls) {
+          graphics.strokeCircle(ball.x, ball.y, def.ballRadius)
+        }
+      } else {
+        const halfLength = def.length / 2
+        const halfWidth = def.width / 2
+        const corner = def.width * 0.36
+
+        graphics.fillStyle(colour.fill, 1)
+        graphics.fillRoundedRect(-halfLength, -halfWidth, def.length, def.width, corner)
+
+        graphics.lineStyle(2, colour.edge, 1)
+        graphics.strokeRoundedRect(-halfLength, -halfWidth, def.length, def.width, corner)
+      }
 
       graphics.restore()
     }

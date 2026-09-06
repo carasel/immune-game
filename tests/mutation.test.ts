@@ -9,6 +9,7 @@ import {
   yellowBacteria,
 } from '../src/content/pathogens'
 import { run, testWorld, worldWith } from './helpers'
+import { theCut } from '../src/content/levels'
 
 describe('the colour ladder', () => {
   it('runs from plain to nasty, each colour adding one thing', () => {
@@ -73,6 +74,7 @@ describe('mutating as they divide', () => {
       y: 300,
       angle: 0,
       health: blueBacteria.health,
+      balls: blueBacteria.balls,
       alive: true,
       divideIn: 1,
       wanderIn: Number.MAX_SAFE_INTEGER,
@@ -94,16 +96,63 @@ describe('mutating as they divide', () => {
     expect(counts.get('yellow-bacteria')).toBeGreaterThan(0)
   })
 
+  /**
+   * One generation, from a lot of parents at once.
+   *
+   * `mutationChance` is a roll made once per division, so that is what wants
+   * measuring. Counting colours in a population that has been breeding for
+   * minutes measures something else — mutants breed true and drift back, so
+   * their share climbs well above the roll and wanders with the seed.
+   */
+  function breedOnce(parents: number, seed: number): { children: number; mutants: number } {
+    const world = testWorld({ startingCells: [], seed })
+
+    for (let i = 0; i < parents; i++) {
+      world.pathogens.push({
+        // Well clear of the ids the sim hands out, or the children it makes
+        // would look like parents we had put there ourselves.
+        id: 90000 + i,
+        defId: 'blue-bacteria',
+        // Spread out across the tissue, so they aren't all piled up together.
+        x: 40 + (i % 40) * 22,
+        y: 30 + Math.floor(i / 40) * 22,
+        angle: 0,
+        health: blueBacteria.health,
+        balls: blueBacteria.balls,
+        alive: true,
+        divideIn: 1,
+        wanderIn: Number.MAX_SAFE_INTEGER,
+      })
+    }
+
+    const before = new Set(world.pathogens.map((pathogen) => pathogen.id))
+
+    // Long enough for every parent to divide once, and nowhere near long enough
+    // for any child to: a new one waits at least 0.6 of its 20 seconds.
+    run(world, 3)
+
+    const children = world.pathogens.filter((pathogen) => !before.has(pathogen.id))
+
+    return {
+      children: children.length,
+      mutants: children.filter((pathogen) => pathogen.defId !== 'blue-bacteria').length,
+    }
+  }
+
   it('mutates roughly as often as the balance says', () => {
-    const counts = breed(180)
+    // A batch has to stay well under maxPathogens or there is no room left for
+    // anything to divide into, so the sample is pooled across several seeds.
+    const batches = [1, 2, 3, 4].map((step) => breedOnce(120, theCut.seed + step))
 
-    const total = [...counts.values()].reduce((sum, n) => sum + n, 0)
-    const mutants = total - (counts.get('blue-bacteria') ?? 0)
+    const children = batches.reduce((sum, batch) => sum + batch.children, 0)
+    const mutants = batches.reduce((sum, batch) => sum + batch.mutants, 0)
 
-    // Nowhere near exact — mutants breed true and can drift back — but a tenth
-    // should land well inside these bounds, where a half or a hundredth wouldn't.
-    expect(mutants / total).toBeGreaterThan(balance.mutationChance / 4)
-    expect(mutants / total).toBeLessThan(balance.mutationChance * 4)
+    expect(children).toBe(480)
+
+    // 480 rolls at a tenth land within a couple of percent of a tenth, so half
+    // the rate and double it are both a very long way outside.
+    expect(mutants / children).toBeGreaterThan(balance.mutationChance / 2)
+    expect(mutants / children).toBeLessThan(balance.mutationChance * 2)
   })
 
   it('gives the child the health and speed of what it became, not its parent', () => {
@@ -118,6 +167,7 @@ describe('mutating as they divide', () => {
       y: 300,
       angle: 0,
       health: blueBacteria.health,
+      balls: blueBacteria.balls,
       alive: true,
       divideIn: 1,
       wanderIn: Number.MAX_SAFE_INTEGER,

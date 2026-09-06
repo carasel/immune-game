@@ -1,4 +1,4 @@
-import type { PathogenDef } from '../content/pathogens'
+import { cocciRadius, type PathogenDef } from '../content/pathogens'
 import { clamp, distance, type Size } from './geometry'
 import { isTrapped, type Net } from './nets'
 import type { Rng } from './rng'
@@ -12,7 +12,16 @@ export interface Pathogen {
   y: number
   /** Which way it is facing, in radians. Rods swim along their long axis. */
   angle: number
+  /**
+   * How much life the ball currently being worked on has left. A rod is one
+   * single body, so for a rod this is simply its health.
+   */
   health: number
+  /**
+   * How many balls it still has. A rod is always 1, and loses that 1 when it
+   * dies. A cocci starts at its def's `balls` and comes apart from there.
+   */
+  balls: number
   alive: boolean
   /** Seconds until it splits in two. */
   divideIn: number
@@ -30,6 +39,56 @@ export interface PathogenContext {
   nets: Net[]
   /** Called once for each body cell that dies, so energy can be charged. */
   onBodyCellDied: (cell: BodyCell) => void
+}
+
+/**
+ * How big this pathogen is right now.
+ *
+ * A rod is always the size its def says. A cocci is the size of the clump it
+ * has left, so knocking balls off really does make it a smaller target — which
+ * is why a half-eaten clump is fiddlier to finish than it was to start.
+ */
+export function pathogenRadius(pathogen: Pathogen, def: PathogenDef): number {
+  if (def.shape !== 'cocci') return def.radius
+
+  return cocciRadius(pathogen.balls, def.ballRadius)
+}
+
+/**
+ * Damage spread over time, the way a NET poisons what it holds. It wears the
+ * current ball down, and when that ball is finished it comes off and the next
+ * one takes over.
+ *
+ * Damage never carries over from one ball to the next: each ball has to be
+ * worn down on its own. That is what "only one ball at a time" means for
+ * anything that does damage gradually.
+ */
+export function damagePathogen(pathogen: Pathogen, def: PathogenDef, amount: number): void {
+  pathogen.health -= amount
+  if (pathogen.health > 0) return
+
+  loseBall(pathogen, def)
+}
+
+/**
+ * One whole ball comes off, however much life was left in it. This is what a
+ * macrophage's bite and a neutrophil's granule both do: a clean hit takes a
+ * ball, not a slice of one.
+ *
+ * A rod has a single ball, so the same hit finishes it outright.
+ */
+export function loseBall(pathogen: Pathogen, def: PathogenDef): void {
+  pathogen.balls--
+
+  if (pathogen.balls <= 0) {
+    pathogen.balls = 0
+    pathogen.health = 0
+    pathogen.alive = false
+    return
+  }
+
+  // The next ball is untouched, whatever was done to the one that just went.
+  pathogen.health = def.health
 }
 
 /**
@@ -56,7 +115,7 @@ export function updatePathogen(
     const gap = distance(pathogen.x, pathogen.y, target.x, target.y)
     pathogen.angle = Math.atan2(target.y - pathogen.y, target.x - pathogen.x)
 
-    if (gap <= target.radius + def.radius) {
+    if (gap <= target.radius + pathogenRadius(pathogen, def)) {
       // Close enough to eat into it. Stop moving and do damage.
       target.health -= def.damagePerSecond * ctx.dt
 
@@ -86,7 +145,7 @@ export function updatePathogen(
 /** Move forwards, bouncing off the edges of the tissue. */
 function swim(pathogen: Pathogen, def: PathogenDef, ctx: PathogenContext): void {
   const step = def.speed * ctx.dt
-  const edge = def.radius
+  const edge = pathogenRadius(pathogen, def)
 
   let x = pathogen.x + Math.cos(pathogen.angle) * step
   let y = pathogen.y + Math.sin(pathogen.angle) * step

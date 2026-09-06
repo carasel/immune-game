@@ -89,6 +89,12 @@ describe('throwing granules', () => {
       target.x = cell.x + granules.range * 0.8
       target.y = cell.y
 
+      // And never leave it digesting. A neutrophil with its mouth full can't
+      // throw anything, which is true and deliberate, but it would be measuring
+      // how often this one manages to swallow an immortal bacterium rather than
+      // how often it throws.
+      cell.meal = null
+
       world.step()
 
       // Count them as they appear, since spent ones are cleared away.

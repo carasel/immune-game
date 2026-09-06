@@ -143,7 +143,7 @@ export const TISSUE_VIEW = { width: WORLD.width, height: WORLD.height - HUD_HEIG
 export const theCut: LevelDef = {
   id: 'the-cut',
   name: 'The Cut',
-  blurb: 'You grazed your knee. Bacteria are getting in through the wound.',
+  blurb: 'You cut your thumb. Bacteria are getting in through the wound.',
   seed: 20260805,
   bodyCellCount: 50,
   clusterCount: 7,
@@ -163,7 +163,6 @@ export const theCut: LevelDef = {
   openings: [
     { id: 'vessel-upper-left', label: 'vessel', edge: 'left', along: 0.3, width: 165, depth: 70 },
     { id: 'vessel-right', label: 'vessel', edge: 'right', along: 0.48, width: 140, depth: 65 },
-    { id: 'vessel-lower-left', label: 'narrow vessel', edge: 'left', along: 0.82, width: 80, depth: 55 },
   ],
 
   // Where the bacteria get in. Drawn as a gash, so `depth` is how far the cut
@@ -191,4 +190,85 @@ export const theCut: LevelDef = {
   ],
 }
 
-export const levels: LevelDef[] = [theCut]
+/**
+ * LEVEL 2 — a graze.
+ *
+ * A graze isn't one clean cut, it is a scrape: the skin is torn open in several
+ * places at once, none of them deep. So this level has TWO ways in, both
+ * shallow — a little scratch and a bigger one — and you cannot simply park
+ * everything you own on one of them.
+ *
+ * It is also where COCCI turn up. A cocci is a clump of balls that comes apart
+ * one ball at a time, so a single blue one is two mouthfuls rather than one,
+ * and a macrophage has to digest the first before it can come back for the
+ * second. They are slow enough that you always have time to reach them — the
+ * problem is never catching one, it is finishing one off before the next
+ * arrives. That is the lesson: a slow enemy you can't kill quickly is worse
+ * than a fast one you can.
+ */
+export const theGraze: LevelDef = {
+  id: 'the-graze',
+  name: 'The Graze',
+  blurb: 'You skidded and scraped your knee. Two scratches, and something round and tough is getting in.',
+  seed: 20260903,
+  bodyCellCount: 56,
+  clusterCount: 7,
+
+  // Tissue under both scratches, so neither one can be ignored, joined by a
+  // spine down the middle. The two lower blobs are what you fall back to when
+  // the top goes badly — and what the vessels open onto.
+  blobs: [
+    { x: 0.27, y: 0.22, size: 2.0 }, // under the little scratch
+    { x: 0.66, y: 0.2, size: 2.3 }, // under the big one
+    { x: 0.46, y: 0.46, size: 2.4 },
+    { x: 0.19, y: 0.7, size: 2.2 },
+    { x: 0.76, y: 0.63, size: 2.4 },
+    { x: 0.5, y: 0.84, size: 1.8 },
+  ],
+
+  // Both vessels sit low, well away from the scratches. Nothing you recruit
+  // arrives where the trouble is; it has to walk up. With bacteria this slow
+  // that is survivable, which is exactly why the cocci are the slow ones.
+  openings: [
+    { id: 'vessel-lower-left', label: 'vessel', edge: 'left', along: 0.62, width: 150, depth: 68 },
+    { id: 'vessel-lower-right', label: 'vessel', edge: 'right', along: 0.56, width: 130, depth: 62 },
+  ],
+
+  // Both shallow — a graze scrapes the surface off, it doesn't cut down in. So
+  // these are wide for their depth, the opposite shape to the cut in level 1.
+  entries: [
+    { id: 'small-scratch', label: 'scratch', edge: 'top', along: 0.27, width: 76, depth: 30 },
+    { id: 'big-scratch', label: 'scrape', edge: 'top', along: 0.66, width: 148, depth: 44 },
+  ],
+
+  // One macrophage parked between the two scratches so there is always
+  // something near whichever one goes first, two more roaming, and a neutrophil
+  // down by the right-hand vessel. The neutrophil matters here in a way it
+  // didn't in level 1: its granules knock a whole ball off a clump every time
+  // one lands, which is the fastest way to take a cocci apart.
+  startingCells: [
+    { cell: 'macrophage', count: 1, at: { x: 0.5, y: 0.36 } },
+    { cell: 'macrophage', count: 2 },
+    { cell: 'neutrophil', count: 1, at: { x: 0.82, y: 0.74 } },
+  ],
+
+  // One cocci on its own first, with plenty of time to work out what it takes
+  // to kill it. Then one at the other scratch, so both are live. The rods
+  // arriving later are the contrast: five of them are less work than two clumps.
+  waves: [
+    { at: 4, pathogen: 'blue-cocci', count: 1, entry: 'big-scratch' },
+    { at: 28, pathogen: 'blue-cocci', count: 1, entry: 'small-scratch' },
+    { at: 55, pathogen: 'blue-cocci', count: 2, entry: 'big-scratch' },
+    { at: 85, pathogen: 'blue-bacteria', count: 3, entry: 'small-scratch' },
+    { at: 118, pathogen: 'blue-cocci', count: 2, entry: 'big-scratch' },
+    { at: 118, pathogen: 'blue-bacteria', count: 2, entry: 'small-scratch' },
+    { at: 152, pathogen: 'blue-cocci', count: 3, entry: 'big-scratch' },
+  ],
+}
+
+export const levels: LevelDef[] = [theCut, theGraze]
+
+/** Returns undefined for an unknown id rather than crashing. */
+export function findLevel(id: string): LevelDef | undefined {
+  return levels.find((level) => level.id === id)
+}
