@@ -282,7 +282,161 @@ export const theGraze: LevelDef = {
   ],
 }
 
-export const levels: LevelDef[] = [theCut, theGraze]
+/**
+ * THE PETRI DISH — the playtest level.
+ *
+ * This one is not a level to win. It is a bench to put things on and look at
+ * them, so that trying out a new pathogen or a new immune cell never means
+ * touching The Cut or The Graze. Break this level as much as you like.
+ *
+ * Everything about it is chosen to get out of the way, so that whatever happens
+ * is the thing you were testing and not the terrain:
+ *
+ *   ONE EVEN FIELD OF TISSUE — a big blob in the middle with four round it, so
+ *   there is always something for a pathogen to eat wherever it comes in, and
+ *   open channels between them to watch things move through.
+ *
+ *   THREE VESSELS, ALL CLOSE — left, right, and one underneath. In the real
+ *   levels the walk from the vessel is half the lesson; here it is just waiting
+ *   about, so you can put a freshly recruited cell next to anything in seconds.
+ *
+ *   THREE DROPPERS ALONG THE TOP — smooth mouths rather than gashes, because
+ *   nothing here is a wound. Somebody is dripping bacteria in on purpose.
+ *
+ *   THE WHOLE FAMILY, ONE AT A TIME — the waves walk all six colours up the
+ *   ladder in both shapes, rods down the left and clumps down the right, a new
+ *   rung every fifteen seconds. So you can watch a purple without first winning
+ *   an argument with a mutation dice roll, and you see each one on its own
+ *   before the next arrives.
+ *
+ * HOW TO USE IT
+ *
+ *   To look at one thing and nothing else, change its wave's `at` to 4 and
+ *   delete the ones above it. To keep something alive longer, raise the `at` of
+ *   whatever comes next.
+ *
+ *   To try a pathogen that doesn't exist yet, add it to content/pathogens.ts and
+ *   put one line in the waves below. To try a new immune cell, add it to
+ *   content/cells.ts and put it in `startingCells` — it will be there from the
+ *   first second, which is what you want when you are watching how it behaves.
+ *
+ *   The clock is your friend: 3x runs the whole ladder in about forty seconds,
+ *   and pause lets you stop on the interesting frame.
+ *
+ *   Left completely alone it holds 53 of its 58 body cells right through the
+ *   climb, with the energy piling up past 500 — so for the two minutes it takes
+ *   the ladder to run, you can watch instead of play.
+ *
+ *   It is not safe forever, mind. Everything in here still breeds, and it
+ *   breeds faster than five macrophages can eat: ignore the dish for four
+ *   minutes and there is barely any tissue left. If you want longer to stare at
+ *   something, pause, or thin the specimens out yourself.
+ */
+export const thePetriDish: LevelDef = {
+  id: 'the-petri-dish',
+  name: 'The Petri Dish',
+  blurb: 'A dish to try things out in. Every bacteria in the game turns up here, one at a time.',
+  seed: 20260907,
+  bodyCellCount: 58,
+  clusterCount: 5,
+
+  // A middle mass with four blobs around it, evenly spaced. Deliberately dull:
+  // a symmetrical layout means a pathogen that behaves oddly on the left and
+  // sensibly on the right is telling you something real.
+  blobs: [
+    { x: 0.5, y: 0.52, size: 3.0 }, // the middle of the dish
+    { x: 0.2, y: 0.28, size: 2.35 }, // under the rod dropper
+    { x: 0.8, y: 0.28, size: 2.35 }, // under the clump dropper
+    { x: 0.22, y: 0.78, size: 2.35 },
+    { x: 0.78, y: 0.78, size: 2.35 },
+  ],
+
+  // Wide, and one on three different sides. Between them there is nowhere in
+  // the dish you cannot get a recruit to quickly.
+  openings: [
+    { id: 'vessel-left', label: 'vessel', edge: 'left', along: 0.55, width: 190, depth: 72 },
+    { id: 'vessel-right', label: 'vessel', edge: 'right', along: 0.55, width: 190, depth: 72 },
+    { id: 'vessel-bottom', label: 'vessel', edge: 'bottom', along: 0.5, width: 170, depth: 68 },
+  ],
+
+  // `mouth`, not the usual `wound`: these are pipettes, not injuries, and they
+  // draw as neat tubes so the dish reads as a dish on the level-select card.
+  //
+  // The middle one is FIRST on purpose — a wave written without an `entry` uses
+  // the level's first — so a line you scribble in to try something lands in the
+  // middle of the dish with nothing else going on around it.
+  //
+  // The left and right labels describe the schedule below rather than the holes
+  // themselves. Send clumps down the left if you like; rename the label to
+  // match and nothing else cares.
+  entries: [
+    { id: 'middle-dropper', label: 'dropper', edge: 'top', along: 0.5, width: 90, depth: 50, shape: 'mouth' },
+    { id: 'left-dropper', label: 'rods', edge: 'top', along: 0.2, width: 90, depth: 50, shape: 'mouth' },
+    { id: 'right-dropper', label: 'clumps', edge: 'top', along: 0.8, width: 90, depth: 50, shape: 'mouth' },
+  ],
+
+  // A big garrison, every one of them placed by hand so the dish starts exactly
+  // the same way every single time. Two macrophages in the middle where they
+  // can reach any dropper, one at each vessel, and a neutrophil in the middle
+  // and at both side vessels.
+  //
+  // Five macrophages sounds like a lot for a level nobody has to win, and it is
+  // the number that makes the bench a bench. A macrophage moves at 16 and
+  // everything above blue swims at 30 or more, so a crowd of them cannot chase
+  // your specimen down and eat it before you have looked at it — all they can
+  // do is mop up whatever blunders into them, which is exactly the job. Without
+  // them the blues you weren't studying breed into the hundreds and the tissue
+  // is gone in three minutes. With them the dish sits at about 53 of its 58
+  // body cells for the whole climb, with the energy piling up.
+  //
+  // Three neutrophils, because they are what you actually want to be testing:
+  // they are the only thing fast enough to catch the top of the ladder, and the
+  // only thing with granules and NETs. They live 90 seconds, and the purple
+  // wave lands at 79 — so the three you start with are still just alive to be
+  // thrown at it. After that you buy more, which by then you can easily afford.
+  startingCells: [
+    { cell: 'macrophage', count: 2, at: { x: 0.5, y: 0.52 } },
+    { cell: 'macrophage', count: 1, at: { x: 0.5, y: 0.85 } },
+    { cell: 'macrophage', count: 1, at: { x: 0.12, y: 0.55 } },
+    { cell: 'macrophage', count: 1, at: { x: 0.88, y: 0.55 } },
+    { cell: 'neutrophil', count: 1, at: { x: 0.5, y: 0.52 } },
+    { cell: 'neutrophil', count: 1, at: { x: 0.12, y: 0.55 } },
+    { cell: 'neutrophil', count: 1, at: { x: 0.88, y: 0.55 } },
+  ],
+
+  // The whole ladder, a rung every 15 seconds, rods on the left and clumps on
+  // the right so you can watch the two shapes of one colour side by side. One
+  // of each, because a testbed wants a specimen and not a swarm.
+  //
+  // Then, at 115, a finale — three purples at once through the middle dropper,
+  // so the level can actually be won rather than just looked at. Clear
+  // everything after that wave has landed and the tissue is saved.
+  //
+  // Waves have to stay in `at` order: the simulation stops at the first one
+  // that isn't due yet, so a wave out of order arrives late or not at all.
+  waves: [
+    { at: 4, pathogen: 'blue-bacteria', count: 1, entry: 'left-dropper' },
+    { at: 4, pathogen: 'blue-cocci', count: 1, entry: 'right-dropper' },
+    { at: 19, pathogen: 'yellow-bacteria', count: 1, entry: 'left-dropper' },
+    { at: 19, pathogen: 'yellow-cocci', count: 1, entry: 'right-dropper' },
+    { at: 34, pathogen: 'red-bacteria', count: 1, entry: 'left-dropper' },
+    { at: 34, pathogen: 'red-cocci', count: 1, entry: 'right-dropper' },
+    { at: 49, pathogen: 'green-bacteria', count: 1, entry: 'left-dropper' },
+    { at: 49, pathogen: 'green-cocci', count: 1, entry: 'right-dropper' },
+    { at: 64, pathogen: 'orange-bacteria', count: 1, entry: 'left-dropper' },
+    { at: 64, pathogen: 'orange-cocci', count: 1, entry: 'right-dropper' },
+    { at: 79, pathogen: 'purple-bacteria', count: 1, entry: 'left-dropper' },
+    { at: 79, pathogen: 'purple-cocci', count: 1, entry: 'right-dropper' },
+    { at: 115, pathogen: 'purple-bacteria', count: 2, entry: 'middle-dropper' },
+    { at: 115, pathogen: 'purple-cocci', count: 1, entry: 'middle-dropper' },
+  ],
+}
+
+/**
+ * The Petri Dish goes last: it is a bench rather than a place, and it is not
+ * part of anybody's progress through the game.
+ */
+export const levels: LevelDef[] = [theCut, theGraze, thePetriDish]
 
 /** Returns undefined for an unknown id rather than crashing. */
 export function findLevel(id: string): LevelDef | undefined {

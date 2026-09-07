@@ -6,11 +6,12 @@ import {
   levels,
   theCut,
   theGraze,
+  thePetriDish,
   TISSUE_VIEW,
   WORLD,
 } from '../src/content/levels'
-import { findPathogen } from '../src/content/pathogens'
-import { World } from '../src/sim/world'
+import { findPathogen, pathogens } from '../src/content/pathogens'
+import { TICKS_PER_SECOND, World } from '../src/sim/world'
 
 /**
  * The level select lists whatever is in here, so a level with a typo in it now
@@ -84,6 +85,20 @@ describe('the level list', () => {
     }
   })
 
+  /**
+   * `releaseDueWaves` stops at the first wave that isn't due yet, so a wave
+   * written out of order doesn't arrive early — it arrives whenever the wave
+   * before it does, or never. Nothing complains, which is why this is a test.
+   */
+  it('keeps every level\'s waves in the order they will actually fire', () => {
+    for (const level of levels) {
+      const times = level.waves.map((wave) => wave.at)
+      const sorted = [...times].sort((a, b) => a - b)
+
+      expect(times, `${level.id} has waves out of order`).toEqual(sorted)
+    }
+  })
+
   it('leaves the tissue area as the screen minus the HUD', () => {
     expect(TISSUE_VIEW.width).toBe(WORLD.width)
     expect(TISSUE_VIEW.height).toBe(WORLD.height - HUD_HEIGHT)
@@ -130,5 +145,90 @@ describe('the graze', () => {
     for (const entry of theGraze.entries) {
       expect(used, `nothing comes in through ${entry.id}`).toContain(entry.id)
     }
+  })
+})
+
+/**
+ * The Petri Dish is the playtest level, and the whole point of it is that you
+ * can see anything in the game without waiting for a mutation to hand it to
+ * you. So the one thing worth not breaking is COMPLETENESS: add a pathogen to
+ * content/pathogens.ts and forget to drip it in here, and the bench quietly
+ * stops being a bench.
+ */
+describe('the petri dish', () => {
+  it('sends every pathogen in the game, so there is nothing you cannot look at', () => {
+    const sent = new Set(thePetriDish.waves.map((wave) => wave.pathogen))
+
+    for (const def of pathogens) {
+      expect(sent, `the dish never drips in ${def.id}`).toContain(def.id)
+    }
+  })
+
+  it('uses all three droppers, and defaults a scribbled-in wave to the middle', () => {
+    const used = new Set(thePetriDish.waves.map((wave) => wave.entry))
+
+    for (const entry of thePetriDish.entries) {
+      expect(used, `nothing comes in through ${entry.id}`).toContain(entry.id)
+    }
+
+    // A wave with no `entry` uses the level's first, which is meant to be the
+    // one in the middle of the dish with room around it.
+    expect(thePetriDish.entries[0].id).toBe('middle-dropper')
+  })
+
+  it('drips rather than wounds, so the dish is a dish', () => {
+    for (const entry of thePetriDish.entries) {
+      expect(entry.shape, `${entry.id} is torn open, not dripped into`).toBe('mouth')
+    }
+  })
+
+  it('shows each specimen on its own, one at a time', () => {
+    // Two waves at a time at most — a rod and its clump — right up until the
+    // finale. A testbed wants a specimen, not a swarm.
+    const byTime = new Map<number, number>()
+    for (const wave of thePetriDish.waves) {
+      byTime.set(wave.at, (byTime.get(wave.at) ?? 0) + wave.count)
+    }
+
+    const ladder = [...byTime.entries()].slice(0, -1)
+    for (const [at, arriving] of ladder) {
+      expect(arriving, `${arriving} things arrive at once at ${at}s`).toBeLessThanOrEqual(2)
+    }
+  })
+
+  it('has enough of a garrison to keep the bench calm', () => {
+    const world = new World(thePetriDish, TISSUE_VIEW)
+
+    // Placed by hand, every one of them, so a run is repeatable.
+    for (const garrison of thePetriDish.startingCells) {
+      expect(garrison.at, `${garrison.cell} is scattered, not placed`).toBeDefined()
+    }
+
+    // Measured: below about this many, the blues nobody is studying breed into
+    // the hundreds and the tissue is gone before the ladder finishes.
+    expect(world.livingImmuneCellCount).toBeGreaterThanOrEqual(8)
+  })
+
+  /**
+   * The promise the level's own comment makes: you can leave it alone and watch.
+   * This is the canary for that — it plays the dish by doing absolutely nothing
+   * and checks there is still a dish at the end of the ladder.
+   */
+  it('survives being ignored for the whole climb, so you can just watch', () => {
+    const world = new World(thePetriDish, TISSUE_VIEW)
+    const lastRung = thePetriDish.waves[thePetriDish.waves.length - 1].at
+
+    for (let tick = 0; tick < lastRung * TICKS_PER_SECOND; tick++) world.step()
+
+    expect(world.isLost, 'the dish died while nobody touched it').toBe(false)
+    expect(world.livingBodyCellCount).toBeGreaterThan(thePetriDish.bodyCellCount / 2)
+    // And enough banked to actually try something with.
+    expect(world.economy.energy).toBeGreaterThan(100)
+  })
+
+  it('opens onto three sides, so a recruit is never a long walk away', () => {
+    const edges = new Set(thePetriDish.openings.map((opening) => opening.edge))
+
+    expect(edges.size).toBe(3)
   })
 })
