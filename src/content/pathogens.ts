@@ -474,27 +474,38 @@ export function findPathogen(id: string): PathogenDef | undefined {
 }
 
 /**
- * The pathogens one step either side of this one on the colour ladder, of the
- * same family AND the same shape — what it might turn into when it divides.
+ * The pathogen one step along the colour ladder from this one — `direction` of
+ * 1 towards purple, -1 back down towards blue — of the same family AND the
+ * same shape. Undefined if there is nothing there.
  *
  * Shape is held fixed because it isn't part of the ladder: drifting a shade is
  * a small change to a bacterium, and a rod waking up as a clump of balls is
  * not. A blue cocci can only ever become a yellow cocci.
  *
- * Colours with no def simply aren't options, which is what kept this working
- * while the ladder was half built. Now that it is full, only the two ends are
- * one-way: a blue can only go up, and a purple can only come back down.
+ * A missing def simply isn't an option, which is what kept this working while
+ * the ladder was half built. Now that it is full, only the two ends come back
+ * empty: nothing sits below blue, and nothing above purple.
  */
-export function mutationsOf(def: PathogenDef): PathogenDef[] {
+export function driftOf(def: PathogenDef, direction: 1 | -1): PathogenDef | undefined {
   const step = pathogenColours.indexOf(def.colour)
-  if (step === -1) return []
+  if (step === -1) return undefined
 
-  const neighbours = [pathogenColours[step - 1], pathogenColours[step + 1]]
+  const colour = pathogenColours[step + direction]
 
-  return pathogens.filter(
+  return pathogens.find(
     (candidate) =>
       candidate.family === def.family &&
       candidate.shape === def.shape &&
-      neighbours.includes(candidate.colour),
+      candidate.colour === colour,
+  )
+}
+
+/**
+ * Both directions at once, down first — everything this one could turn into
+ * when it divides.
+ */
+export function mutationsOf(def: PathogenDef): PathogenDef[] {
+  return [driftOf(def, -1), driftOf(def, 1)].filter(
+    (option): option is PathogenDef => option !== undefined,
   )
 }

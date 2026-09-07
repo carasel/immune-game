@@ -1,7 +1,7 @@
 import { balance } from '../content/balance'
 import { findImmuneCell, type ImmuneCellDef } from '../content/cells'
 import type { LevelDef, WaveDef } from '../content/levels'
-import { findPathogen, mutationsOf, type PathogenDef } from '../content/pathogens'
+import { driftOf, findPathogen, type PathogenDef } from '../content/pathogens'
 import { Economy } from './economy'
 import { clamp, distance, keepOutContains, rectContains, type Size, type Vec2 } from './geometry'
 import { updateGranule, type Granule } from './granules'
@@ -15,7 +15,7 @@ import {
 } from './immuneCells'
 import { resolveEdgeRegions, type EdgeRegion } from './openings'
 import { pathogenRadius, updatePathogen, type Pathogen } from './pathogens'
-import { makeRng, pick, randomRange, type Rng } from './rng'
+import { makeRng, randomRange, type Rng } from './rng'
 import { generateBodyCells, type BodyCell } from './tissue'
 
 /**
@@ -863,13 +863,21 @@ export class World {
    * What a new bacterium turns out to be: usually its parent, occasionally one
    * shade along the ladder. Drift only ever goes one step, so a blue infection
    * left alone becomes a yellow one before it can become anything worse.
+   *
+   * Up is nine times as likely as down, so a lineage left to itself climbs
+   * instead of shuffling about around the shade it started on. One roll decides
+   * both whether it drifts and which way, so the two chances share the same
+   * tenth and can't ever both land.
    */
   private mutationOf(def: PathogenDef): PathogenDef {
-    if (this.rng() >= balance.mutationChance) return def
+    const roll = this.rng()
 
-    const options = mutationsOf(def)
-    if (options.length === 0) return def
+    let direction: 1 | -1
+    if (roll < balance.mutationUpChance) direction = 1
+    else if (roll < balance.mutationUpChance + balance.mutationDownChance) direction = -1
+    else return def
 
-    return pick(this.rng, options)
+    // At the ends of the ladder there is nothing that way, and it stays put.
+    return driftOf(def, direction) ?? def
   }
 }

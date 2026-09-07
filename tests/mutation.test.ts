@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { balance } from '../src/content/balance'
 import {
   blueBacteria,
+  findPathogen,
   greenBacteria,
   mutationsOf,
   orangeBacteria,
@@ -10,6 +11,7 @@ import {
   purpleBacteria,
   redBacteria,
   yellowBacteria,
+  type PathogenDef,
 } from '../src/content/pathogens'
 import { run, testWorld, worldWith } from './helpers'
 import { theCut } from '../src/content/levels'
@@ -142,14 +144,18 @@ describe('mutating as they divide', () => {
   })
 
   /**
-   * One generation, from a lot of parents at once.
+   * One generation, from a lot of parents at once, all of one colour.
    *
-   * `mutationChance` is a roll made once per division, so that is what wants
+   * The drift chances are a roll made once per division, so that is what wants
    * measuring. Counting colours in a population that has been breeding for
-   * minutes measures something else — mutants breed true and drift back, so
-   * their share climbs well above the roll and wanders with the seed.
+   * minutes measures something else — mutants breed true and drift on, so their
+   * share climbs well above the roll and wanders with the seed.
    */
-  function breedOnce(parents: number, seed: number): { children: number; mutants: number } {
+  function breedOnce(
+    parent: PathogenDef,
+    parents: number,
+    seed: number,
+  ): { children: number; up: number; down: number } {
     const world = testWorld({ startingCells: [], seed })
 
     for (let i = 0; i < parents; i++) {
@@ -157,13 +163,13 @@ describe('mutating as they divide', () => {
         // Well clear of the ids the sim hands out, or the children it makes
         // would look like parents we had put there ourselves.
         id: 90000 + i,
-        defId: 'blue-bacteria',
+        defId: parent.id,
         // Spread out across the tissue, so they aren't all piled up together.
         x: 40 + (i % 40) * 22,
         y: 30 + Math.floor(i / 40) * 22,
         angle: 0,
-        health: blueBacteria.health,
-        balls: blueBacteria.balls,
+        health: parent.health,
+        balls: parent.balls,
         alive: true,
         divideIn: 1,
         wanderIn: Number.MAX_SAFE_INTEGER,
@@ -177,27 +183,57 @@ describe('mutating as they divide', () => {
     run(world, 3)
 
     const children = world.pathogens.filter((pathogen) => !before.has(pathogen.id))
+    const step = pathogenColours.indexOf(parent.colour)
+
+    const shade = (child: (typeof children)[number]) =>
+      pathogenColours.indexOf(findPathogen(child.defId)!.colour) - step
 
     return {
       children: children.length,
-      mutants: children.filter((pathogen) => pathogen.defId !== 'blue-bacteria').length,
+      up: children.filter((child) => shade(child) === 1).length,
+      down: children.filter((child) => shade(child) === -1).length,
     }
   }
 
-  it('mutates roughly as often as the balance says', () => {
+  /** The same pooled sample, from whichever colour of parent. */
+  function generation(parent: PathogenDef) {
     // A batch has to stay well under maxPathogens or there is no room left for
     // anything to divide into, so the sample is pooled across several seeds.
-    const batches = [1, 2, 3, 4].map((step) => breedOnce(120, theCut.seed + step))
+    const batches = [1, 2, 3, 4].map((step) => breedOnce(parent, 120, theCut.seed + step))
 
-    const children = batches.reduce((sum, batch) => sum + batch.children, 0)
-    const mutants = batches.reduce((sum, batch) => sum + batch.mutants, 0)
+    return {
+      children: batches.reduce((sum, batch) => sum + batch.children, 0),
+      up: batches.reduce((sum, batch) => sum + batch.up, 0),
+      down: batches.reduce((sum, batch) => sum + batch.down, 0),
+    }
+  }
+
+  it('drifts up roughly as often as the balance says', () => {
+    const { children, up } = generation(yellowBacteria)
 
     expect(children).toBe(480)
 
-    // 480 rolls at a tenth land within a couple of percent of a tenth, so half
-    // the rate and double it are both a very long way outside.
-    expect(mutants / children).toBeGreaterThan(balance.mutationChance / 2)
-    expect(mutants / children).toBeLessThan(balance.mutationChance * 2)
+    // 480 rolls at a shade under a tenth land within a couple of percent of it,
+    // so half the rate and double it are both a very long way outside.
+    expect(up / children).toBeGreaterThan(balance.mutationUpChance / 2)
+    expect(up / children).toBeLessThan(balance.mutationUpChance * 2)
+  })
+
+  it('drifts back down far more rarely than it climbs', () => {
+    const { children, up, down } = generation(yellowBacteria)
+
+    // Rare, but it does happen: the ladder is not a one-way escalator.
+    expect(down).toBeGreaterThan(0)
+    expect(down / children).toBeLessThan(balance.mutationDownChance * 3)
+
+    // Nine to one, give or take what 480 rolls can show.
+    expect(up).toBeGreaterThan(down * 4)
+  })
+
+  it('never drifts a blue downwards, because there is nothing below it', () => {
+    const { down } = generation(blueBacteria)
+
+    expect(down).toBe(0)
   })
 
   it('gives the child the health and speed of what it became, not its parent', () => {

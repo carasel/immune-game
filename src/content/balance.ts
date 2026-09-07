@@ -98,18 +98,29 @@ export const balance = {
   // ---------------------------------------------------------------------------
 
   /** Hard cap, so runaway bacteria can't grind the game to a halt. */
-  maxPathogens: 250,
+  maxPathogens: 400,
 
   /**
-   * The chance that a bacterium splitting in two produces something a shade
-   * different from its parent — one step along the colour ladder, up or down.
+   * The chance that a bacterium splitting in two comes out a shade further UP
+   * the colour ladder than its parent — harder, faster, worth more.
    *
    * This is the only way a new colour ever appears in a level: the waves bring
    * blue and nothing else. Let a fight run away from you for long enough and it
    * starts changing colour, which is antigenic drift, and is exactly why the flu
    * vaccine is a yearly guess.
    */
-  mutationChance: 0.1,
+  mutationUpChance: 0.1,
+
+  /**
+   * The chance it comes out a shade DOWN the ladder instead, back towards blue.
+   *
+   * Drift is deliberately lopsided: nine times out of ten it climbs. An even
+   * walk up and down goes almost nowhere, so a lineage left alone would take
+   * most of an hour to reach green. Weighted this way it climbs steadily, and
+   * the odd step back is just enough that the ladder doesn't feel like a
+   * one-way escalator.
+   */
+  mutationDownChance: 0.05,
 
   // ---------------------------------------------------------------------------
   // IMMUNE CELLS

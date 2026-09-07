@@ -478,7 +478,8 @@ in dead body cells, and that is exactly what happens in a real infection.
 - 6 colours × 3 families, added incrementally rather than up front.
 - One fixed screen, ~50 body cells, added incrementally.
 - Bacteria overlap freely; immune cells and body cells are solid.
-- Mutation drifts only to an **adjacent** colour; memory partially covers neighbours.
+- Mutation drifts only to an **adjacent** colour, nine times up for every once down; memory
+  partially covers neighbours.
 - Tier drives placeholder sprite size and spikiness, **overridable per pathogen** once real
   sprites are drawn.
 - Every level has a different layout with **openings at the sides** — blood vessels — that
@@ -542,10 +543,13 @@ in dead body cells, and that is exactly what happens in a real infection.
   rather than spongier. Worth watching — it does mean a neutrophil's granule one-shots
   anything, and if that turns out to be too strong, health is the obvious thing to add to the
   ladder.
-- **Mutation is the only way a new colour appears.** Waves bring blue and nothing else; a
-  bacterium that gets to divide has a 1 in 10 chance of coming out one shade along, up or
-  down. So colours are something an infection *becomes* when you let it run, not something a
-  level hands you. All six colours now exist, in both shapes.
+- **Mutation is how most new colours appear, and it climbs.** A bacterium that gets to
+  divide has a 9 in 100 chance of coming out one shade *up* the ladder and a 1 in 100 chance
+  of slipping one shade back — so drift is lopsided, and an infection left to itself gets
+  nastier rather than shuffling about around the shade it started on. Colours are still mostly
+  something an infection *becomes* when you let it run; a level seeding a higher colour (the
+  graze sends yellow) is a starting rung, not a shortcut past the ladder. All six colours now
+  exist, in both shapes.
 - **Green runs away, and what that means depends on its shape.** Green is the first rung that
   is behaviour rather than numbers: it watches for immune cells and swims directly away from
   any within 120px. 120 sits inside a macrophage's 150 sight and a neutrophil's 190, so you
@@ -568,15 +572,15 @@ in dead body cells, and that is exactly what happens in a real infection.
   Worth watching: an orange cocci's 19 is the first cocci speed to beat a macrophage's 16, so
   from orange up a clump in the open can no longer be run down by the cell whose whole job is
   eating it.
-- **Open question: nothing will ever meet a green.** Drift is one step at a time, up as often
-  as down, on one division in ten, so blue → green is a reflecting random walk needing about
-  nine mutations — roughly 90 divisions of one unbroken lineage, half an hour of continuous
-  fighting. Measured it: thirty simulated minutes of stalemate reached green once in three
-  seeds and never reached orange. And a runaway infection is worse, not better, because
-  `maxPathogens` freezes divisions dead at 250 and the ladder stops climbing at red. So the
-  three new colours are built, tuned and tested, and unreachable in play. The fix is a balance
-  decision, not a code one: raise `mutationChance`, or let a level send something other than
-  blue.
+- **Meeting a green: fixed by weighting the drift, not by rolling it more often.** Drift used
+  to be an even walk up and down on one division in ten, which goes almost nowhere — blue →
+  green needed about nine net steps, and thirty simulated minutes of stalemate reached green
+  once in three seeds. It is now 9 in 100 up against 1 in 100 down: the same tenth of
+  divisions mutate, but they climb. Measured again, one bacterium left completely alone:
+  starting blue it fills the tissue as blue, yellow and red; starting **yellow**, which is
+  what the graze sends, it is showing greens inside five minutes in all three seeds, and
+  oranges in one. The ceiling is `maxPathogens`, not the ladder — divisions stop dead at 250
+  and whatever the population has become by then is what it stays.
 - **Level 1 is winnable on the cells you start with, but only if you play it.** Send all three
   to the cut at the start and they meet each wave as it arrives: won at 2:14 with 43 of 50
   body cells, nothing recruited. Left alone the tissue is gone by 1:56. That gap between the

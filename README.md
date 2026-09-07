@@ -150,15 +150,14 @@ Day 2 has started. The macrophage is in:
       is faster again, purple hits harder again, in both shapes. A green rod
       drops its dinner to run and no macrophage can catch it; a green clump is
       too slow for that and stays to eat instead
+- [x] Drift that climbs — 9 divisions in 100 come out one shade up the ladder
+      and 1 in 100 one shade back, so an infection you leave alone gets nastier
+      instead of wandering. Left completely alone from yellow, the graze grows
+      greens inside five minutes
 
 Left on the Day 2 list:
 
 - [ ] Tuning the numbers until it feels right — the last and best bit
-- [ ] Deciding how a player is ever supposed to *meet* green. Mutation drifts
-      one step at a time, up as often as down, at 1 division in 10 — so blue to
-      green is about 90 divisions of one unbroken lineage. Half an hour of
-      fighting. Either `mutationChance` goes up, or a level sends something
-      other than blue
 
 After that, and not part of Day 2:
 
