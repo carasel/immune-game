@@ -1,5 +1,5 @@
 import { cocciRadius, type PathogenDef } from '../content/pathogens'
-import { clamp, distance, type Size } from './geometry'
+import { clamp, distance, type Size, type Vec2 } from './geometry'
 import type { ImmuneCell } from './immuneCells'
 import { isTrapped, type Net } from './nets'
 import type { Rng } from './rng'
@@ -42,6 +42,10 @@ export interface PathogenContext {
   nets: Net[]
   /** Called once for each body cell that dies, so energy can be charged. */
   onBodyCellDied: (cell: BodyCell) => void
+  /** How much faster or slower it swims at (x, y). 1 is normal; inflammation slows it. */
+  speedFactorAt: (x: number, y: number) => number
+  /** Where it really ends up moving from `from` to `to`, with anything solid in the way. */
+  steer: (from: Vec2, to: Vec2, radius: number) => Vec2
 }
 
 /**
@@ -163,7 +167,7 @@ export function updatePathogen(
 
 /** Move forwards, bouncing off the edges of the tissue. */
 function swim(pathogen: Pathogen, def: PathogenDef, ctx: PathogenContext): void {
-  const step = def.speed * ctx.dt
+  const step = def.speed * ctx.speedFactorAt(pathogen.x, pathogen.y) * ctx.dt
   const edge = pathogenRadius(pathogen, def)
 
   let x = pathogen.x + Math.cos(pathogen.angle) * step
@@ -178,8 +182,9 @@ function swim(pathogen: Pathogen, def: PathogenDef, ctx: PathogenContext): void 
     y = clamp(y, edge, ctx.bounds.height - edge)
   }
 
-  pathogen.x = x
-  pathogen.y = y
+  const steered = ctx.steer(pathogen, { x, y }, edge)
+  pathogen.x = steered.x
+  pathogen.y = steered.y
 }
 
 /**

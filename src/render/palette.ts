@@ -107,3 +107,27 @@ export const textColour = {
 export const font = {
   family: 'system-ui, "Segoe UI", Roboto, sans-serif',
 }
+
+/**
+ * Inflammation: hot, swollen and red. Drawn see-through over the tissue, so you
+ * can still see what is underneath going pink-to-red.
+ */
+export const inflammationPalette = {
+  fill: 0xff4d5e,
+  edge: 0xff7a86,
+  /** The middle of the HUD icon. */
+  hot: 0xffb0a0,
+}
+
+/**
+ * The splinter: wood, the colour it was drawn in, with darker grain. And pus,
+ * which is a creamy yellow, deliberately paler and greener than the macrophages
+ * so the two never get mixed up.
+ */
+export const splinterPalette = {
+  wood: 0xb87b56,
+  grain: 0x8c5536,
+  edge: 0x6e4026,
+  pusFill: 0xeee08a,
+  pusEdge: 0xc2ad48,
+}

@@ -46,7 +46,8 @@ src/
     balance.ts   every number that decides how the game feels
     cells.ts     immune cells: size, speed, vision, what eating pays, upkeep
     pathogens.ts the pathogens and their colours
-    levels.ts    tissue layouts, vessel openings, pathogen entry points
+    levels.ts    tissue layouts, vessel openings, pathogen entry points, splinters
+    inflammation.ts  inflamed circles and pus: size, cost, speeds, how much pus it takes
   sim/         the simulation. Plain TypeScript — never imports Phaser.
     world.ts     the fixed-timestep tick
     tissue.ts    grows the body cells into blobs with channels between them
@@ -54,16 +55,18 @@ src/
     immuneCells.ts  your cells: wander, hunt, swallow, clear up debris
     granules.ts  the poison neutrophils throw, and what it lands on
     nets.ts      the webs they leave behind when they tear themselves apart
+    inflammation.ts  inflamed circles: what they do inside, and calming down
+    splinter.ts  a solid splinter: sliding round it, and where bacteria come off it
     economy.ts   energy: income, costs, starvation
     openings.ts  turns "a vessel on the left, 30% down" into coordinates
     rng.ts       seeded randomness, so a level always builds the same
   render/      Phaser. Draws what the simulation reports.
     MenuScene.ts   the level select: one card per level, with a little map
     LevelScene.ts  the tissue, the bacteria and the immune cells, and how it ends
-    HudScene.ts    energy, cell counts, clock, speed and recruit controls
+    HudScene.ts    energy, cell counts, clock, speed, inflame and recruit controls
     levelMap.ts    shrinks a level's real layout down for the select screen
     shapes.ts      the cell outlines, shared by the map and the HUD
-    icons.ts       little pictures of a cell, a macrophage and a bacterium
+    icons.ts       little pictures of a cell, a macrophage, a bacterium, inflammation
     palette.ts     colours
 tests/           run with `npm run check`. No Phaser, no browser — just the rules.
   helpers.ts       building a world to test, and running it for a few seconds
@@ -103,7 +106,11 @@ still quietly make the game easier or harder.
 - **+** in the bottom bar opens the recruit menu. Pick a cell, then **click a vessel** — it
   arrives there and has to walk to the fight itself. The energy is only spent once you've
   picked the vessel
-- **Escape** — put the cell down, or call off the recruit
+- **The red circle button** in the bottom bar (from the splinter on) inflames the tissue. Press
+  it, then **click the tissue**: a red circle goes down there. Inside it your cells move faster,
+  bacteria move slower, and your own body cells are slowly hurt. It costs energy every second,
+  and calms down by itself once there are no bacteria in it
+- **Escape** or **right-click** — put the cell down, or call off the recruit or the inflammation
 - **Space** — pause / unpause
 - **1 2 3 4** — pause, 0.5x, 1x, 3x
 - Or click the buttons in the bottom right
@@ -155,10 +162,19 @@ Day 2 has started. The macrophage is in:
       instead of wandering. Left completely alone from yellow, the graze grows
       greens inside five minutes
 
-Left on the Day 2 list:
+Tuning the numbers happens as we playtest, not as a step of its own.
 
-- [ ] Tuning the numbers until it feels right — the last and best bit
+Level 3 is in:
 
-After that, and not part of Day 2:
+- [x] The splinter: a solid sliver of wood that walls the top of the tissue in two.
+      Cells and bacteria slide round it, past the tip. Bacteria come off its sides
+- [x] Inflammation: a red circle you pay for every second. Faster cells, slower
+      bacteria, sore tissue. Calms down by itself once the fight in it is over
+- [x] Pus: neutrophils dying by the splinter, somewhere inflamed, build a yellow blob
+      round it. Enough of it pushes the splinter out, and the waves after that come in
+      through the hole at half size. Macrophages eat pus when they have nothing better to do
 
-- [ ] Narrow vessels as bottlenecks — recruits queue instead of arriving at once
+Parked:
+
+- Narrow vessels as bottlenecks — cells walk over body cells anyway, so this wants a
+  bigger change to movement first

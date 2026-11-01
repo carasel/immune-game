@@ -7,6 +7,7 @@ import {
   theCut,
   theGraze,
   thePetriDish,
+  theSplinter,
   TISSUE_VIEW,
   WORLD,
 } from '../src/content/levels'
@@ -53,7 +54,9 @@ describe('the level list', () => {
 
   it('only sends waves through entries it actually has', () => {
     for (const level of levels) {
+      // A splinter is a way in too: waves come off its sides.
       const entries = level.entries.map((entry) => entry.id)
+      if (level.splinter) entries.push(level.splinter.id)
 
       for (const wave of level.waves) {
         if (wave.entry === undefined) continue
@@ -64,9 +67,26 @@ describe('the level list', () => {
 
   it('gives every level somewhere for cells to come in and something to come in through', () => {
     for (const level of levels) {
+      const waysIn = level.entries.length + (level.splinter ? 1 : 0)
       expect(level.openings.length, `${level.id} has no vessels`).toBeGreaterThan(0)
-      expect(level.entries.length, `${level.id} has no way in`).toBeGreaterThan(0)
+      expect(waysIn, `${level.id} has no way in`).toBeGreaterThan(0)
     }
+  })
+
+  it('names an entry on every wave when the level has no wound to default to', () => {
+    for (const level of levels) {
+      if (level.entries.length > 0) continue
+
+      for (const wave of level.waves) {
+        expect(wave.entry, `${level.id} wave at ${wave.at}`).toBeDefined()
+      }
+    }
+  })
+
+  it('only lets you inflame from the splinter on, not on the cut or the graze', () => {
+    expect(theCut.inflammation ?? false).toBe(false)
+    expect(theGraze.inflammation ?? false).toBe(false)
+    expect(theSplinter.inflammation).toBe(true)
   })
 
   it('builds a playable world for every level, with the tissue it asked for', () => {

@@ -1,5 +1,6 @@
 import { balance } from '../content/balance'
 import { findImmuneCell, type ImmuneCellDef } from '../content/cells'
+import { inflammation } from '../content/inflammation'
 import { findPathogen } from '../content/pathogens'
 import { clamp, distance, type Size, type Vec2 } from './geometry'
 import { loseBall, pathogenRadius, type Pathogen } from './pathogens'
@@ -19,6 +20,12 @@ const PATHOGEN_REACH = 0.8
  */
 const DEBRIS_REACH = 0.5
 
+/**
+ * How far past touching a macrophage can reach pus from. Pus sits on the
+ * splinter, which is solid, so a macrophage can only ever get up against it.
+ */
+const PUS_REACH = 6
+
 /** How close a cell has to get to where it was sent before it counts as arrived. */
 const ARRIVED_WITHIN = 2
 
@@ -36,7 +43,7 @@ export type Order =
 
 /** What an immune cell is currently busy swallowing. */
 export interface Meal {
-  kind: 'pathogen' | 'debris'
+  kind: 'pathogen' | 'debris' | 'pus'
   /** Which pathogen it swallowed, so it can be drawn inside. Not set for debris. */
   pathogenDefId?: string
   secondsLeft: number
@@ -93,6 +100,20 @@ export interface ImmuneCellContext {
   onMealFinished: (cell: ImmuneCell, meal: Meal) => void
   /** Called when a cell throws a granule, with the direction it threw it. */
   onGranuleThrown: (cell: ImmuneCell, def: ImmuneCellDef, angle: number) => void
+  /**
+   * How much faster or slower a cell moves at (x, y) than its def says. 1 is
+   * normal. Inflammation is what changes it.
+   */
+  speedFactorAt: (x: number, y: number) => number
+  /** Where it really ends up moving from `from` to `to`, with anything solid in the way. */
+  steer: (from: Vec2, to: Vec2, radius: number) => Vec2
+  /**
+   * The nearest bit of pus to (x, y) within `range`, or null if there is none
+   * to clean up. Only cells that clear up debris ever ask.
+   */
+  pusWithin: (x: number, y: number, range: number) => Vec2 | null
+  /** Called when a macrophage takes a mouthful of pus, so it can be taken away. */
+  onPusBitten: (cell: ImmuneCell) => void
 }
 
 /**
@@ -239,6 +260,29 @@ export function updateImmuneCell(
       crawl(cell, def, ctx)
       return
     }
+
+    // Last of all, with nothing better to do: pus. Clearing it up is real, and
+    // it undoes the work of pushing a splinter out, which is exactly why it
+    // comes after everything else a macrophage could be eating.
+    const pus = ctx.pusWithin(cell.x, cell.y, def.visionRange)
+
+    if (pus) {
+      cell.angle = Math.atan2(pus.y - cell.y, pus.x - cell.x)
+
+      if (distance(cell.x, cell.y, pus.x, pus.y) <= def.radius + PUS_REACH) {
+        ctx.onPusBitten(cell)
+        cell.meal = {
+          kind: 'pus',
+          secondsLeft: inflammation.macrophageSecondsPerPusBite,
+          totalSeconds: inflammation.macrophageSecondsPerPusBite,
+          reward: inflammation.energyPerPusBite,
+        }
+        return
+      }
+
+      crawl(cell, def, ctx)
+      return
+    }
   }
 
   cell.wanderIn -= ctx.dt
@@ -335,7 +379,7 @@ export function killImmuneCell(cell: ImmuneCell, elapsedSeconds: number): void {
  * so "walk towards the nearest bacterium" needs no pathfinding at all.
  */
 function crawl(cell: ImmuneCell, def: ImmuneCellDef, ctx: ImmuneCellContext): void {
-  const step = def.speed * ctx.dt
+  const step = def.speed * ctx.speedFactorAt(cell.x, cell.y) * ctx.dt
   const edge = def.radius
 
   let x = cell.x + Math.cos(cell.angle) * step
@@ -356,8 +400,9 @@ function crawl(cell: ImmuneCell, def: ImmuneCellDef, ctx: ImmuneCellContext): vo
     y = clamp(y, edge, ctx.bounds.height - edge)
   }
 
-  cell.x = x
-  cell.y = y
+  const steered = ctx.steer(cell, { x, y }, def.radius)
+  cell.x = steered.x
+  cell.y = steered.y
 }
 
 /**

@@ -1,7 +1,7 @@
 import type Phaser from 'phaser'
 import { macrophage, type ImmuneCellDef } from '../content/cells'
 import { blueBacteria } from '../content/pathogens'
-import { immunePalette, palette, pathogenPalette } from './palette'
+import { immunePalette, inflammationPalette, palette, pathogenPalette } from './palette'
 import { cellOutline, insideCell, rodTail, ROD_TAIL_ROOT, rodTailShape } from './shapes'
 
 /**
@@ -137,3 +137,23 @@ export function drawBacteriumIcon(
   graphics.strokeRoundedRect(centreX - length / 2, y - width / 2, length, width, width * 0.36)
 }
 
+
+/**
+ * Inflammation: a red, swollen patch, the same as the circles it puts on the
+ * tissue, with a hot middle.
+ */
+export function drawInflammationIcon(
+  graphics: Phaser.GameObjects.Graphics,
+  x: number,
+  y: number,
+  size: number,
+): void {
+  graphics.fillStyle(inflammationPalette.fill, 0.35)
+  graphics.fillCircle(x, y, size)
+
+  graphics.lineStyle(2, inflammationPalette.edge, 1)
+  graphics.strokeCircle(x, y, size)
+
+  graphics.fillStyle(inflammationPalette.hot, 1)
+  graphics.fillCircle(x, y, size * 0.42)
+}

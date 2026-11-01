@@ -1,11 +1,14 @@
 import Phaser from 'phaser'
 import { balance } from '../content/balance'
 import { findImmuneCell } from '../content/cells'
+import { inflammation } from '../content/inflammation'
 import { findLevel, levels, TISSUE_VIEW, WORLD } from '../content/levels'
 import { ballOffsets, findPathogen } from '../content/pathogens'
-import type { Vec2 } from '../sim/geometry'
-import type { ImmuneCell } from '../sim/immuneCells'
+import { polygonCentre, type Vec2 } from '../sim/geometry'
+import type { ImmuneCell, Meal } from '../sim/immuneCells'
+import { radiusOf, strengthOf } from '../sim/inflammation'
 import type { EdgeRegion } from '../sim/openings'
+import type { Splinter } from '../sim/splinter'
 import type { BodyCell } from '../sim/tissue'
 import { TICKS_PER_SECOND, World } from '../sim/world'
 import { formatClock } from './format'
@@ -14,9 +17,11 @@ import {
   font,
   granulePalette,
   immunePalette,
+  inflammationPalette,
   netPalette,
   palette,
   pathogenPalette,
+  splinterPalette,
   textColour,
 } from './palette'
 import { cellOutline, insideCell, rodTail, ROD_TAIL_ROOT, rodTailShape } from './shapes'
@@ -56,9 +61,20 @@ const TAIL_WAVES_PER_SECOND = 2.6
  */
 const TAIL_STAGGER = 1.7
 
+/** How long the splinter takes to slide out once the pus pushes it, in level seconds. */
+const SPLINTER_EXIT_SECONDS = 1.6
+
+/** How thick the pus round the splinter gets when it is just about to push it out. */
+const PUS_THICKEST = 30
+
+/** How far apart the blobs of pus are along the splinter's sides. */
+const PUS_BLOB_SPACING = 9
+
 export class LevelScene extends Phaser.Scene {
   private world!: World
   private tissueGraphics!: Phaser.GameObjects.Graphics
+  private inflammationGraphics!: Phaser.GameObjects.Graphics
+  private splinterGraphics!: Phaser.GameObjects.Graphics
   private pathogenGraphics!: Phaser.GameObjects.Graphics
   private netGraphics!: Phaser.GameObjects.Graphics
   private granuleGraphics!: Phaser.GameObjects.Graphics
@@ -123,6 +139,13 @@ export class LevelScene extends Phaser.Scene {
       this.outlines.set(cell.id, buildOutline(cell))
     }
 
+    // See-through over the tissue, so you can watch what is under it redden.
+    this.inflammationGraphics = this.add.graphics()
+
+    // The splinter and the pus round it sit on the tissue, under anything that
+    // moves, so a bacterium coming off it is drawn on top of it.
+    this.splinterGraphics = this.add.graphics()
+
     // Webs lie on the ground, under everything caught in them — so a bacterium
     // stuck in one is still clearly a bacterium you can click on.
     this.netGraphics = this.add.graphics()
@@ -176,6 +199,8 @@ export class LevelScene extends Phaser.Scene {
     }
 
     this.drawTissue()
+    this.drawInflammation(time)
+    this.drawSplinter()
     this.drawNets()
     this.drawPathogens()
     this.drawGranules()
@@ -359,6 +384,226 @@ export class LevelScene extends Phaser.Scene {
   }
 
   /**
+   * Inflamed circles: a red, see-through swelling over the tissue, with a
+   * slow throb at the edge. A circle calming down shrinks and pales, so you can
+   * see one going out without having to read a number.
+   */
+  private drawInflammation(time: number): void {
+    const graphics = this.inflammationGraphics
+    graphics.clear()
+
+    for (const patch of this.world.inflammations) {
+      if (!patch.alive) continue
+
+      const strength = strengthOf(patch)
+      const radius = radiusOf(patch)
+      // Each throbs out of step with the others, so two circles side by side
+      // don't pulse like one thing.
+      const throb = 0.5 + 0.5 * Math.sin(time / 420 + patch.id * 1.3)
+
+      graphics.fillStyle(inflammationPalette.fill, (0.24 + 0.06 * throb) * strength)
+      graphics.fillCircle(patch.x, patch.y, radius)
+
+      // A hotter middle, so it reads as swelling rather than a flat red disc.
+      graphics.fillStyle(inflammationPalette.fill, 0.12 * strength)
+      graphics.fillCircle(patch.x, patch.y, radius * 0.6)
+
+      graphics.lineStyle(2, inflammationPalette.edge, (0.45 + 0.3 * throb) * strength)
+      graphics.strokeCircle(patch.x, patch.y, radius)
+    }
+  }
+
+  /**
+   * The splinter: a sliver of wood with the grain running down it, sitting in a
+   * yellow blob of pus that thickens as neutrophils die round it. When the pus
+   * wins, it slides back out the way it came in and leaves a raw hole behind.
+   */
+  private drawSplinter(): void {
+    const graphics = this.splinterGraphics
+    graphics.clear()
+
+    const splinter = this.world.splinter
+    if (!splinter) return
+
+    if (splinter.pushedOut) {
+      this.drawSplinterHole(graphics, splinter)
+
+      const since = this.world.elapsedSeconds - (splinter.pushedOutAtSeconds ?? 0)
+      if (since < SPLINTER_EXIT_SECONDS) {
+        const gone = since / SPLINTER_EXIT_SECONDS
+        this.drawWood(graphics, splinter, gone, 1 - gone)
+      }
+      return
+    }
+
+    this.drawPus(graphics, splinter, this.world.pusFraction)
+    this.drawWood(graphics, splinter, 0, 1)
+  }
+
+  /**
+   * The wood itself. `out` slides it back along its own length, 0 where it is
+   * stuck and 1 once it is completely out of the skin.
+   */
+  private drawWood(
+    graphics: Phaser.GameObjects.Graphics,
+    splinter: Splinter,
+    out: number,
+    alpha: number,
+  ): void {
+    // Back the way it came: from the tip towards the skin, by its whole length.
+    const skin = splinter.skin
+    const shiftX = (skin.x - splinter.tip.x) * out * 1.1
+    const shiftY = (skin.y - splinter.tip.y) * out * 1.1
+    const shape = splinter.outline.map((point) => ({ x: point.x + shiftX, y: point.y + shiftY }))
+
+    graphics.fillStyle(splinterPalette.wood, alpha)
+    graphics.fillPoints(shape, true)
+
+    // Grain, running from the skin end to the tip. Only drawn for a four-sided
+    // splinter, where "the two long sides" is a clear idea.
+    if (shape.length === 4) {
+      const [skinA, skinB, tipB, tipA] = shape
+      const lines = 5
+
+      for (let line = 1; line < lines; line++) {
+        const across = line / lines
+        graphics.lineStyle(line % 2 === 0 ? 1.5 : 1, splinterPalette.grain, 0.55 * alpha)
+        graphics.lineBetween(
+          skinA.x + (skinB.x - skinA.x) * across,
+          skinA.y + (skinB.y - skinA.y) * across,
+          tipA.x + (tipB.x - tipA.x) * (0.15 + across * 0.7),
+          tipA.y + (tipB.y - tipA.y) * (0.15 + across * 0.7),
+        )
+      }
+    }
+
+    graphics.lineStyle(2, splinterPalette.edge, alpha)
+    graphics.strokePoints(shape, true)
+  }
+
+  /**
+   * Pus: a lumpy yellow blob all round the splinter's sides, thickening as it
+   * builds. Made of overlapping circles with their own fixed wobble, so it is
+   * blobby rather than a neat outline, and it doesn't shimmer.
+   */
+  private drawPus(graphics: Phaser.GameObjects.Graphics, splinter: Splinter, fraction: number): void {
+    if (fraction <= 0) return
+
+    const blobs: { x: number; y: number; size: number }[] = []
+    let index = 0
+
+    for (const [from, to] of splinter.sides) {
+      const length = Math.hypot(to.x - from.x, to.y - from.y)
+      const steps = Math.max(1, Math.round(length / PUS_BLOB_SPACING))
+
+      for (let step = 0; step <= steps; step++) {
+        const along = step / steps
+        // Two lumpinesses on top of each other, so it bulges in big lobes with
+        // smaller bumps on them rather than one even ripple all the way along.
+        const wobble = 0.72 + 0.2 * Math.sin(index * 0.9) + 0.12 * Math.sin(index * 2.7 + 1)
+        blobs.push({
+          x: from.x + (to.x - from.x) * along,
+          y: from.y + (to.y - from.y) * along,
+          size: PUS_THICKEST * fraction * wobble,
+        })
+        index++
+      }
+    }
+
+    // Every edge before any fill, so the blobs merge into one lump.
+    graphics.fillStyle(splinterPalette.pusEdge, 0.9)
+    for (const blob of blobs) graphics.fillCircle(blob.x, blob.y, blob.size + 2)
+
+    graphics.fillStyle(splinterPalette.pusFill, 0.95)
+    for (const blob of blobs) graphics.fillCircle(blob.x, blob.y, blob.size)
+  }
+
+  /**
+   * What a pushed-out splinter leaves: a raw hole, drawn the same way as the
+   * cut, so it reads as a wound and never as a vessel. Dark red where it broke
+   * the skin, going almost black down where the tip was.
+   */
+  private drawSplinterHole(graphics: Phaser.GameObjects.Graphics, splinter: Splinter): void {
+    const shape = splinter.outline
+
+    // Sliced from the skin end to the tip, for a four-sided one. Anything else
+    // is just filled, darker towards the middle.
+    if (shape.length === 4) {
+      const [skinA, skinB, tipB, tipA] = shape
+      const slices = 12
+      const at = (from: Vec2, to: Vec2, along: number) => ({
+        x: from.x + (to.x - from.x) * along,
+        y: from.y + (to.y - from.y) * along,
+      })
+
+      for (let slice = 0; slice < slices; slice++) {
+        const top = slice / slices
+        const bottom = (slice + 1) / slices
+        graphics.fillStyle(mixColour(palette.woundMouth, palette.woundDeep, (top + bottom) / 2), 1)
+        graphics.fillPoints(
+          [at(skinA, tipA, top), at(skinB, tipB, top), at(skinB, tipB, bottom), at(skinA, tipA, bottom)],
+          true,
+        )
+      }
+    } else {
+      graphics.fillStyle(palette.woundMouth, 1)
+      graphics.fillPoints(shape, true)
+
+      const middle = polygonCentre(shape)
+      graphics.fillStyle(palette.woundDeep, 0.8)
+      graphics.fillPoints(
+        shape.map((point) => ({
+          x: middle.x + (point.x - middle.x) * 0.6,
+          y: middle.y + (point.y - middle.y) * 0.6,
+        })),
+        true,
+      )
+    }
+
+    // Raw edges, brightest up at the skin and fading as they go in. How deep a
+    // point is gets measured along the splinter, from the skin end to the tip.
+    const axisX = splinter.tip.x - splinter.skin.x
+    const axisY = splinter.tip.y - splinter.skin.y
+    const axisSquared = Math.max(1, axisX * axisX + axisY * axisY)
+    const depthOf = (x: number, y: number) =>
+      ((x - splinter.skin.x) * axisX + (y - splinter.skin.y) * axisY) / axisSquared
+
+    for (const [from, to] of splinter.sides) {
+      const steps = 10
+      for (let step = 0; step < steps; step++) {
+        const a = step / steps
+        const b = (step + 1) / steps
+        const middle = (a + b) / 2
+        const depth = depthOf(from.x + (to.x - from.x) * middle, from.y + (to.y - from.y) * middle)
+        graphics.lineStyle(3, palette.woundLip, 0.95 - 0.7 * Math.min(1, Math.max(0, depth)))
+        graphics.lineBetween(
+          from.x + (to.x - from.x) * a,
+          from.y + (to.y - from.y) * a,
+          from.x + (to.x - from.x) * b,
+          from.y + (to.y - from.y) * b,
+        )
+      }
+    }
+  }
+
+  /**
+   * While an inflamed circle is waiting to be put down, a ghost of it follows
+   * the pointer, exactly the size it will be, so you can see what it covers.
+   */
+  private drawInflammationPreview(graphics: Phaser.GameObjects.Graphics, time: number): void {
+    const pointer = this.input.activePointer
+    if (pointer.worldY >= TISSUE_VIEW.height) return
+
+    const pulse = 0.5 + 0.5 * Math.sin(time / 190)
+
+    graphics.fillStyle(inflammationPalette.fill, 0.1 + 0.08 * pulse)
+    graphics.fillCircle(pointer.worldX, pointer.worldY, inflammation.radius)
+
+    graphics.lineStyle(2, inflammationPalette.edge, 0.5 + 0.4 * pulse)
+    graphics.strokeCircle(pointer.worldX, pointer.worldY, inflammation.radius)
+  }
+
+  /**
    * While a recruit is waiting to be placed, every vessel pulses to say "pick
    * one of these". They are the only places a recruit can arrive, and a 9-year
    * -old shouldn't have to be told that twice.
@@ -366,6 +611,11 @@ export class LevelScene extends Phaser.Scene {
   private drawRecruitHighlights(time: number): void {
     const graphics = this.highlightGraphics
     graphics.clear()
+
+    if (this.world.isPlacingInflammation) {
+      this.drawInflammationPreview(graphics, time)
+      return
+    }
 
     if (!this.world.recruitingDefId) return
 
@@ -406,6 +656,25 @@ export class LevelScene extends Phaser.Scene {
       // also send a macrophage somewhere underneath it.
       if (this.registry.get('recruitMenuOpen')) return
 
+      // A right-click while something is waiting to be placed calls it off.
+      if (pointer.rightButtonDown()) {
+        if (this.world.isPlacingInflammation) {
+          this.world.cancelInflammation()
+          return
+        }
+        if (this.world.recruitingDefId) {
+          this.world.cancelRecruit()
+          return
+        }
+      }
+
+      // Inflaming takes over the click the same way: the circle goes down
+      // wherever you click on the tissue.
+      if (this.world.isPlacingInflammation) {
+        this.world.inflameAt(pointer.worldX, pointer.worldY)
+        return
+      }
+
       // Placing a recruit takes over the click entirely: hit a vessel and it
       // arrives there, miss and the recruit is called off. No half states.
       if (this.world.recruitingDefId) {
@@ -444,7 +713,8 @@ export class LevelScene extends Phaser.Scene {
 
     this.input.keyboard?.on('keydown-ESC', () => {
       this.forgetLastClick()
-      if (this.world.recruitingDefId) this.world.cancelRecruit()
+      if (this.world.isPlacingInflammation) this.world.cancelInflammation()
+      else if (this.world.recruitingDefId) this.world.cancelRecruit()
       else this.world.clearSelection()
     })
   }
@@ -521,6 +791,24 @@ export class LevelScene extends Phaser.Scene {
     }
     for (const entry of this.world.entries) {
       this.labelEdgeRegion(entry, textColour.entry)
+    }
+
+    // Just past the tip, out in the tissue where it doesn't sit on the wood.
+    const splinter = this.world.splinter
+    if (splinter) {
+      const awayX = splinter.tip.x - splinter.skin.x
+      const awayY = splinter.tip.y - splinter.skin.y
+      const away = Math.hypot(awayX, awayY) || 1
+
+      this.add
+        .text(
+          splinter.tip.x + (awayX / away) * 34,
+          splinter.tip.y + (awayY / away) * 34,
+          splinter.label,
+          { fontFamily: font.family, fontSize: '13px', color: textColour.entry },
+        )
+        .setOrigin(0.5)
+        .setAlpha(0.85)
     }
   }
 
@@ -746,7 +1034,7 @@ export class LevelScene extends Phaser.Scene {
       const size = def.radius * 0.44 * (1 - digested)
       if (size < 1) continue
 
-      graphics.fillStyle(mealColour(cell.meal.pathogenDefId), 0.9 * fade)
+      graphics.fillStyle(mealColour(cell.meal), 0.9 * fade)
       graphics.fillCircle(meal.x, meal.y, size)
     }
   }
@@ -760,9 +1048,11 @@ export class LevelScene extends Phaser.Scene {
   }
 }
 
-/** The colour of whatever a macrophage is digesting. Debris has no pathogen. */
-function mealColour(pathogenDefId: string | undefined): number {
-  const colour = pathogenDefId ? findPathogen(pathogenDefId)?.colour : undefined
+/** The colour of whatever a macrophage is digesting. Debris and pus have no pathogen. */
+function mealColour(meal: Meal): number {
+  if (meal.kind === 'pus') return splinterPalette.pusFill
+
+  const colour = meal.pathogenDefId ? findPathogen(meal.pathogenDefId)?.colour : undefined
   return colour ? pathogenPalette[colour].fill : palette.debrisEdge
 }
 

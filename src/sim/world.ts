@@ -1,10 +1,28 @@
 import { balance } from '../content/balance'
 import { findImmuneCell, type ImmuneCellDef } from '../content/cells'
+import { inflammation } from '../content/inflammation'
 import type { LevelDef, WaveDef } from '../content/levels'
 import { driftOf, findPathogen, type PathogenDef } from '../content/pathogens'
 import { Economy } from './economy'
-import { clamp, distance, keepOutContains, rectContains, type Size, type Vec2 } from './geometry'
+import {
+  clamp,
+  distance,
+  keepOutContains,
+  nearestPointOnPolygon,
+  pushOutOfPolygon,
+  rectContains,
+  type Size,
+  type Vec2,
+} from './geometry'
 import { updateGranule, type Granule } from './granules'
+import {
+  hurtInflamedTissue,
+  inflamedAt,
+  speedFactorAt,
+  strengthOf,
+  updateInflammation,
+  type Inflammation,
+} from './inflammation'
 import { bodyCellsUnder, updateNet, type Net } from './nets'
 import {
   killImmuneCell,
@@ -16,6 +34,16 @@ import {
 import { resolveEdgeRegions, type EdgeRegion } from './openings'
 import { pathogenRadius, updatePathogen, type Pathogen } from './pathogens'
 import { makeRng, randomRange, type Rng } from './rng'
+import {
+  blockedBySplinter,
+  distanceToSplinter,
+  moveAroundSplinter,
+  pointInHole,
+  pointOffSide,
+  resolveSplinter,
+  type SlideSense,
+  type Splinter,
+} from './splinter'
 import { generateBodyCells, type BodyCell } from './tissue'
 
 /**
@@ -59,6 +87,10 @@ export class World {
   readonly granules: Granule[] = []
   /** Webs on the ground, left by neutrophils that tore themselves apart. */
   readonly nets: Net[] = []
+  /** Inflamed circles the player has put down. */
+  readonly inflammations: Inflammation[] = []
+  /** Something stuck in the tissue, on the levels that have one. */
+  readonly splinter: Splinter | null
   readonly economy: Economy
 
   tickCount = 0
@@ -78,11 +110,25 @@ export class World {
    * the energy is not spent until the second one.
    */
   private pendingRecruit: string | null = null
+  /** True between pressing the inflammation button and clicking the tissue. */
+  private placingInflammation = false
+  /**
+   * Immune cells whose death has already been dealt with, so a dead neutrophil
+   * leaves its pus once and not every tick for the rest of the level.
+   */
+  private readonly mourned = new Set<number>()
+  /**
+   * Which way round the splinter each thing bumping into it is going, so it
+   * keeps going that way rather than dithering at a corner. Keyed by the cell
+   * or bacterium itself, and forgotten the moment its path is clear.
+   */
+  private readonly sliding = new WeakMap<object, SlideSense>()
   private readonly rng: Rng
   private nextPathogenId = 1
   private nextImmuneCellId = 1
   private nextGranuleId = 1
   private nextNetId = 1
+  private nextInflammationId = 1
   private nextWave = 0
   /** Counts down to the next starvation death while energy is at zero. */
   private starveIn = balance.starvationSecondsPerCell
@@ -96,8 +142,11 @@ export class World {
     // level says otherwise.
     this.openings = resolveEdgeRegions(level.openings, bounds, 'mouth')
     this.entries = resolveEdgeRegions(level.entries, bounds, 'wound')
+    this.splinter = level.splinter ? resolveSplinter(level.splinter, bounds) : null
 
     const clearAreas = [...this.openings, ...this.entries].map((region) => region.keepOut)
+    // Nothing grows where the splinter is.
+    if (this.splinter) clearAreas.push(this.splinter.keepOut)
     this.bodyCells = generateBodyCells(
       bounds,
       clearAreas,
@@ -128,11 +177,15 @@ export class World {
     this.releaseDueWaves()
     // Before the pathogens, so anything held in a web is held this tick too.
     this.updateNets()
+    // Before anything moves, so everything moves at this tick's speed.
+    this.updateInflammations()
     this.updatePathogens()
     this.economy.addIncome(this.livingBodyCellCount, SECONDS_PER_TICK)
     this.updateImmuneCells()
     this.updateGranules()
     this.starveImmuneCells()
+    // Last, so it sees every cell that died this tick, whatever killed it.
+    this.collectPus()
     this.checkForOutcome()
   }
 
@@ -269,6 +322,11 @@ export class World {
       return
     }
 
+    if (this.splinter && wave.entry === this.splinter.id) {
+      this.releaseFromSplinter(def, wave.count, this.splinter)
+      return
+    }
+
     const entry = wave.entry
       ? this.entries.find((candidate) => candidate.id === wave.entry)
       : this.entries[0]
@@ -290,12 +348,45 @@ export class World {
     // appearing in the flesh either side of it.
     const offset = randomRange(this.rng, -entry.innerHalfWidth * 0.7, entry.innerHalfWidth * 0.7)
 
+    this.addPathogenAt(
+      def,
+      {
+        x: entry.innerPoint.x + entry.tangent.x * offset,
+        y: entry.innerPoint.y + entry.tangent.y * offset,
+      },
+      Math.atan2(entry.inward.y, entry.inward.x),
+    )
+  }
+
+  /**
+   * A wave off the splinter. While it is in they come off anywhere along its
+   * sides, facing away from it. Once it is out they come in through the hole
+   * it left instead, and fewer of them: the dirt went out with the splinter.
+   */
+  private releaseFromSplinter(def: PathogenDef, count: number, splinter: Splinter): void {
+    if (splinter.pushedOut) {
+      const fewer = Math.ceil(count * inflammation.waveSizeAfterPushedOut)
+      for (let i = 0; i < fewer; i++) {
+        const { at, angle } = pointInHole(splinter, this.rng)
+        this.addPathogenAt(def, at, angle)
+      }
+      return
+    }
+
+    for (let i = 0; i < count; i++) {
+      // Far enough out that a whole clump clears the side it came off.
+      const { at, angle } = pointOffSide(splinter, this.rng, def.radius + 4)
+      this.addPathogenAt(def, at, angle)
+    }
+  }
+
+  private addPathogenAt(def: PathogenDef, at: Vec2, angle: number): void {
     this.pathogens.push({
       id: this.nextPathogenId++,
       defId: def.id,
-      x: entry.innerPoint.x + entry.tangent.x * offset,
-      y: entry.innerPoint.y + entry.tangent.y * offset,
-      angle: Math.atan2(entry.inward.y, entry.inward.x),
+      x: at.x,
+      y: at.y,
+      angle,
       health: def.health,
       // A cocci arrives as a whole clump. A rod is one body, so it is always 1.
       balls: def.balls,
@@ -372,12 +463,20 @@ export class World {
     // would never be seen again. Refuse it here rather than trust every caller.
     if (!Number.isFinite(x) || !Number.isFinite(y)) return false
 
-    // Keep the destination somewhere the cell can actually stand.
-    cell.order = {
-      kind: 'move',
+    // Keep the destination somewhere the cell can actually stand: inside the
+    // tissue, and not inside a splinter it could never reach the middle of.
+    let destination = {
       x: clamp(x, def.radius, this.bounds.width - def.radius),
       y: clamp(y, def.radius, this.bounds.height - def.radius),
     }
+
+    if (this.splinter && blockedBySplinter(this.splinter, destination.x, destination.y, def.radius)) {
+      destination =
+        pushOutOfPolygon(this.splinter.outline, destination.x, destination.y, def.radius + 1) ??
+        destination
+    }
+
+    cell.order = { kind: 'move', ...destination }
 
     return true
   }
@@ -442,6 +541,8 @@ export class World {
     const def = findImmuneCell(defId)
     if (!def || !this.economy.canAfford(def.cost)) return false
 
+    // One thing waiting for a click at a time.
+    this.placingInflammation = false
     this.pendingRecruit = defId
     return true
   }
@@ -582,11 +683,13 @@ export class World {
     return cell
   }
 
-  /** Clear of tissue, clear of other immune cells, and not sitting in a wound. */
+  /** Clear of tissue, clear of other immune cells, and not in a wound or a splinter. */
   private isRoomForImmuneCell(def: ImmuneCellDef, x: number, y: number): boolean {
     for (const entry of this.entries) {
       if (keepOutContains(entry.keepOut, x, y, def.radius)) return false
     }
+
+    if (this.splinter && blockedBySplinter(this.splinter, x, y, def.radius)) return false
 
     for (const bodyCell of this.bodyCells) {
       if (!bodyCell.alive) continue
@@ -614,6 +717,11 @@ export class World {
       // Eating things is what pays for the whole immune system.
       onMealFinished: (_cell, meal) => this.economy.credit(meal.reward),
       onGranuleThrown: (cell, def, angle) => this.throwGranule(cell, def, angle),
+      speedFactorAt: (x, y) =>
+        speedFactorAt(this.inflammations, x, y, inflammation.immuneCellSpeedMultiplier),
+      steer: (from, to, radius) => this.steer(from, to, radius),
+      pusWithin: (x, y, range) => this.pusWithin(x, y, range),
+      onPusBitten: () => this.biteOutOfPus(),
     }
 
     for (const cell of this.immuneCells) {
@@ -629,6 +737,203 @@ export class World {
     }
 
     separateImmuneCells(this.immuneCells, this.bounds)
+
+    // Shoving each other apart can shove one into the splinter. Put it back out.
+    if (this.splinter && !this.splinter.pushedOut) {
+      for (const cell of this.immuneCells) {
+        if (!cell.alive) continue
+
+        const def = findImmuneCell(cell.defId)
+        if (!def) continue
+
+        this.keepOutOfSplinter(cell, def.radius)
+      }
+    }
+  }
+
+  /**
+   * Puts something that has ended up inside the splinter (shoved there, or
+   * born there) back just outside it. Not a move, so it leaves alone which way
+   * round the thing was sliding.
+   */
+  private keepOutOfSplinter(thing: Vec2, radius: number): void {
+    if (!this.splinter || this.splinter.pushedOut) return
+
+    const clear = pushOutOfPolygon(this.splinter.outline, thing.x, thing.y, radius)
+    if (!clear) return
+
+    thing.x = clear.x
+    thing.y = clear.y
+  }
+
+  /** Where something moving from `from` to `to` really ends up, round anything solid. */
+  private steer(from: Vec2, to: Vec2, radius: number): Vec2 {
+    if (!this.splinter) return to
+
+    // `from` is the cell or bacterium itself, so it doubles as the key for
+    // remembering which way round it was already going.
+    const result = moveAroundSplinter(
+      this.splinter,
+      from,
+      to,
+      radius,
+      this.sliding.get(from) ?? null,
+    )
+
+    if (result.sliding === null) this.sliding.delete(from)
+    else this.sliding.set(from, result.sliding)
+
+    return result.at
+  }
+
+  // ---------------------------------------------------------------------------
+  // Inflammation
+  // ---------------------------------------------------------------------------
+
+  /** Does this level let the player inflame the tissue at all? */
+  get canInflame(): boolean {
+    return this.level.inflammation === true
+  }
+
+  /** True between pressing the inflammation button and clicking the tissue. */
+  get isPlacingInflammation(): boolean {
+    return this.placingInflammation
+  }
+
+  /**
+   * Step one: get ready to put a circle down. Like recruiting, nothing is
+   * charged yet. Refused on a level without inflammation, or with too little
+   * energy to pay for even one second of it.
+   */
+  beginInflammation(): boolean {
+    if (!this.canInflame || !this.economy.canAfford(inflammation.costPerSecond)) return false
+
+    this.pendingRecruit = null
+    this.placingInflammation = true
+    return true
+  }
+
+  cancelInflammation(): void {
+    this.placingInflammation = false
+  }
+
+  /**
+   * Step two: the circle goes down here. From now on it costs energy every
+   * second until it has calmed down. Returns the new circle, or null if nothing
+   * was waiting to be placed.
+   */
+  inflameAt(x: number, y: number): Inflammation | null {
+    if (!this.placingInflammation) return null
+    this.placingInflammation = false
+
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null
+
+    const patch: Inflammation = {
+      id: this.nextInflammationId++,
+      x: clamp(x, 0, this.bounds.width),
+      y: clamp(y, 0, this.bounds.height),
+      graceLeft: inflammation.graceSeconds,
+      calmed: 0,
+      alive: true,
+    }
+
+    this.inflammations.push(patch)
+    return patch
+  }
+
+  /** How inflamed (x, y) is, from 0 to 1. For the render and the tests. */
+  inflamedAt(x: number, y: number): number {
+    return inflamedAt(this.inflammations, x, y)
+  }
+
+  private updateInflammations(): void {
+    if (this.inflammations.length === 0) return
+
+    const context = {
+      dt: SECONDS_PER_TICK,
+      pathogens: this.pathogens,
+      bodyCells: this.bodyCells,
+      onBodyCellDied: () => this.economy.chargeForBodyCellDeath(),
+    }
+
+    for (const patch of this.inflammations) {
+      if (!patch.alive) continue
+
+      updateInflammation(patch, context)
+
+      // A circle calming down costs less as it shrinks.
+      if (patch.alive) {
+        this.economy.chargeInflammation(
+          inflammation.costPerSecond * strengthOf(patch),
+          SECONDS_PER_TICK,
+        )
+      }
+    }
+
+    hurtInflamedTissue(this.inflammations, context)
+
+    if (this.inflammations.some((patch) => !patch.alive)) {
+      const burning = this.inflammations.filter((patch) => patch.alive)
+      this.inflammations.length = 0
+      this.inflammations.push(...burning)
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Pus, and the splinter coming out
+  // ---------------------------------------------------------------------------
+
+  /** How much of the way to pushing the splinter out the pus has got, from 0 to 1. */
+  get pusFraction(): number {
+    if (!this.splinter || this.splinter.pushedOut) return 0
+    return clamp(this.splinter.pus / inflammation.pusToPushOut, 0, 1)
+  }
+
+  /**
+   * Every immune cell that died since last tick, looked at once. A cell that
+   * leaves pus and died close to the splinter, somewhere inflamed, adds to the
+   * pile. Enough of a pile and out the splinter comes.
+   *
+   * Done by looking for the dead rather than at each way of dying, because
+   * there are four (old age, a NET, starving, and whatever comes next) and pus
+   * doesn't care which it was.
+   */
+  private collectPus(): void {
+    for (const cell of this.immuneCells) {
+      if (cell.alive || this.mourned.has(cell.id)) continue
+      this.mourned.add(cell.id)
+
+      const splinter = this.splinter
+      if (!splinter || splinter.pushedOut) continue
+
+      if (!findImmuneCell(cell.defId)?.leavesPus) continue
+      if (distanceToSplinter(splinter, cell.x, cell.y) > inflammation.pusReach) continue
+      if (this.inflamedAt(cell.x, cell.y) <= 0) continue
+
+      splinter.pus += inflammation.pusPerNeutrophil
+      if (splinter.pus >= inflammation.pusToPushOut) this.pushSplinterOut(splinter)
+    }
+  }
+
+  /** Out it comes. The pus goes with it, and what is left behind is a hole. */
+  private pushSplinterOut(splinter: Splinter): void {
+    splinter.pushedOut = true
+    splinter.pushedOutAtSeconds = this.elapsedSeconds
+    splinter.pus = 0
+  }
+
+  /** The nearest bit of pus within `range` of (x, y), for a macrophage looking for it. */
+  private pusWithin(x: number, y: number, range: number): Vec2 | null {
+    const splinter = this.splinter
+    if (!splinter || splinter.pushedOut || splinter.pus <= 0) return null
+
+    const nearest = nearestPointOnPolygon(splinter.outline, x, y)
+    return distance(x, y, nearest.x, nearest.y) <= range ? nearest : null
+  }
+
+  private biteOutOfPus(): void {
+    if (!this.splinter) return
+    this.splinter.pus = Math.max(0, this.splinter.pus - inflammation.pusPerMacrophageBite)
   }
 
   /**
@@ -722,6 +1027,8 @@ export class World {
       pathogens: this.pathogens,
       bounds: this.bounds,
       onBodyCellDied: () => this.economy.chargeForBodyCellDeath(),
+      isSolid: (x: number, y: number) =>
+        this.splinter !== null && blockedBySplinter(this.splinter, x, y, 0),
     }
 
     for (const granule of this.granules) {
@@ -807,6 +1114,9 @@ export class World {
       rng: this.rng,
       nets: this.nets,
       onBodyCellDied: () => this.economy.chargeForBodyCellDeath(),
+      speedFactorAt: (x: number, y: number) =>
+        speedFactorAt(this.inflammations, x, y, inflammation.pathogenSpeedMultiplier),
+      steer: (from: Vec2, to: Vec2, radius: number) => this.steer(from, to, radius),
     }
 
     // Newborns go in a separate list so they don't get a turn until next tick.
@@ -828,6 +1138,14 @@ export class World {
       if (newborns.length >= roomLeft) continue
 
       newborns.push(this.splitOff(pathogen, def))
+    }
+
+    // Splitting next to the splinter can put the new one inside it.
+    for (const newborn of newborns) {
+      const def = findPathogen(newborn.defId)
+      if (!def) continue
+
+      this.keepOutOfSplinter(newborn, pathogenRadius(newborn, def))
     }
 
     this.pathogens.push(...newborns)
