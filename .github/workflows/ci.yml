@@ -1,11 +1,10 @@
-# Runs the same checks as `npm run verify` (types, tests, build) on every push
-# and pull request, so a broken main shows up on GitHub rather than on the next
-# person's machine.
+# Runs the same checks as `npm run verify` (types, tests, build) on every pull
+# request, so a broken change shows up on GitHub before it reaches main. Pushes
+# to main are already checked by deploy.yml, which runs verify before it
+# publishes, so this doesn't run them a second time.
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
 
 jobs:
