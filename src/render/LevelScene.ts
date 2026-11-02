@@ -70,6 +70,9 @@ const PUS_THICKEST = 30
 /** How far apart the blobs of pus are along the splinter's sides. */
 const PUS_BLOB_SPACING = 9
 
+/** How long the restart button's "Sure?" waits for a second click, in real milliseconds. */
+const RESTART_SURE_MS = 3000
+
 export class LevelScene extends Phaser.Scene {
   private world!: World
   private tissueGraphics!: Phaser.GameObjects.Graphics
@@ -101,6 +104,15 @@ export class LevelScene extends Phaser.Scene {
   /** Shown once the level is decided. Built lazily, since most levels don't end. */
   private ending: Phaser.GameObjects.Container | null = null
 
+  /** The restart button in the corner, for a level that is going wrong. */
+  private restartBox!: Phaser.GameObjects.Rectangle
+  private restartText!: Phaser.GameObjects.Text
+  /**
+   * When the "Sure?" stops waiting for its second click, in real milliseconds.
+   * Restarting takes two clicks so a stray one can't throw a game away.
+   */
+  private restartArmedUntil = 0
+
   /** For spotting a double-click: which cell was clicked last, and when. */
   private lastClickedCellId: number | null = null
   private lastClickedAt = Number.NEGATIVE_INFINITY
@@ -122,6 +134,7 @@ export class LevelScene extends Phaser.Scene {
     this.outlines.clear()
     this.leftoverMs = 0
     this.levelSeconds = 0
+    this.restartArmedUntil = 0
     this.forgetLastClick()
 
     const level = findLevel(this.levelId) ?? levels[0]
@@ -164,6 +177,7 @@ export class LevelScene extends Phaser.Scene {
 
     // After both, so nothing covers the labels up.
     this.drawLabels()
+    this.buildRestartButton()
 
     this.bindPointer()
 
@@ -206,8 +220,51 @@ export class LevelScene extends Phaser.Scene {
     this.drawGranules()
     this.drawImmuneCells()
     this.drawRecruitHighlights(time)
+    this.refreshRestartButton(time)
 
     if (this.world.isOver && !this.ending) this.showEnding()
+  }
+
+  /**
+   * A small button in the top-right corner of the tissue, for starting the level
+   * again when it is going wrong. The bar along the bottom is full, so it lives
+   * up here. First click asks "Sure?", second click restarts.
+   */
+  private buildRestartButton(): void {
+    const x = WORLD.width - 52
+    const y = 20
+
+    this.restartBox = this.add
+      .rectangle(x, y, 84, 26, palette.hudButton, 0.85)
+      .setStrokeStyle(1, palette.hudButtonActive, 0.6)
+      .setInteractive({ useHandCursor: true })
+
+    this.restartText = this.add
+      .text(x, y, '', {
+        fontFamily: font.family,
+        fontSize: '13px',
+        color: textColour.bright,
+      })
+      .setOrigin(0.5)
+
+    this.restartBox.on('pointerdown', () => {
+      if (this.time.now < this.restartArmedUntil) {
+        this.scene.restart({ levelId: this.levelId })
+        return
+      }
+      this.restartArmedUntil = this.time.now + RESTART_SURE_MS
+    })
+  }
+
+  private refreshRestartButton(time: number): void {
+    // Once the level is over the ending offers "Try again" instead.
+    const show = !this.world.isOver
+    this.restartBox.setVisible(show)
+    this.restartText.setVisible(show)
+
+    const armed = time < this.restartArmedUntil
+    this.restartText.setText(armed ? 'Sure?' : 'Restart')
+    this.restartBox.setFillStyle(armed ? palette.hudButtonActive : palette.hudButton, 0.85)
   }
 
   /**
@@ -650,6 +707,11 @@ export class LevelScene extends Phaser.Scene {
       // The HUD is a separate scene drawn over the bottom strip, so clicks down
       // there belong to it and never to the tissue.
       if (pointer.worldY >= TISSUE_VIEW.height) return
+
+      // The restart button sits over the tissue, and a click on it is its own.
+      if (this.restartBox.visible && this.restartBox.getBounds().contains(pointer.worldX, pointer.worldY)) {
+        return
+      }
 
       // The recruit menu floats over the tissue. While it is open a click is
       // the menu's business — picking a row or dismissing it — and must not
