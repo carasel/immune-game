@@ -525,7 +525,7 @@ in dead body cells, and that is exactly what happens in a real infection.
 - 6 colours × 3 families, added incrementally rather than up front.
 - One fixed screen, ~50 body cells, added incrementally.
 - Bacteria overlap freely; immune cells and body cells are solid.
-- Mutation drifts only to an **adjacent** colour, nine times up for every once down; memory
+- Mutation drifts only to an **adjacent** colour, twice up for every once down; memory
   partially covers neighbours.
 - Tier drives placeholder sprite size and spikiness, **overridable per pathogen** once real
   sprites are drawn.

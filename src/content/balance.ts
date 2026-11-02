@@ -114,7 +114,7 @@ export const balance = {
   /**
    * The chance it comes out a shade DOWN the ladder instead, back towards blue.
    *
-   * Drift is deliberately lopsided: nine times out of ten it climbs. An even
+   * Drift is deliberately lopsided: two times out of three it climbs. An even
    * walk up and down goes almost nowhere, so a lineage left alone would take
    * most of an hour to reach green. Weighted this way it climbs steadily, and
    * the odd step back is just enough that the ladder doesn't feel like a
