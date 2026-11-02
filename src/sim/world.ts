@@ -1222,10 +1222,10 @@ export class World {
    * shade along the ladder. Drift only ever goes one step, so a blue infection
    * left alone becomes a yellow one before it can become anything worse.
    *
-   * Up is nine times as likely as down, so a lineage left to itself climbs
-   * instead of shuffling about around the shade it started on. One roll decides
-   * both whether it drifts and which way, so the two chances share the same
-   * tenth and can't ever both land.
+   * Up is twice as likely as down, so a lineage left to itself climbs instead
+   * of shuffling about around the shade it started on. One roll decides both
+   * whether it drifts and which way, so the two chances sit side by side on the
+   * same roll and can't ever both land.
    */
   private mutationOf(def: PathogenDef): PathogenDef {
     const roll = this.rng()
