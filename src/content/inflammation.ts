@@ -18,7 +18,7 @@ export const inflammation = {
   // ---------------------------------------------------------------------------
 
   /** How big a circle is, in pixels from the middle to the edge. */
-  radius: 90,
+  radius: 120,
 
   /**
    * Energy per second, for each circle, while it is at full strength. A circle
@@ -31,7 +31,7 @@ export const inflammation = {
    * How much faster immune cells move inside a circle. 1.5 is half as fast
    * again. Real inflammation brings blood and signals that hurry them along.
    */
-  immuneCellSpeedMultiplier: 1.5,
+  immuneCellSpeedMultiplier: 2,
 
   /**
    * How much slower bacteria move inside a circle. 0.6 is a bit over half
@@ -57,13 +57,21 @@ export const inflammation = {
    * How long a circle takes to calm down once there are no bacteria in it. It
    * shrinks and gets weaker the whole way, and swells back up if more arrive.
    */
-  fadeSeconds: 6,
+  fadeSeconds: 12,
 
   /**
    * How small a circle gets just before it disappears, as a fraction of its
    * full size. 0.4 means it shrinks to a bit under half.
    */
-  smallestFadingSize: 0.4,
+  smallestFadingSize: 0.3,
+
+  /**
+   * Does a circle touching the splinter stay at full strength for as long as
+   * the splinter is in, even with no bacteria in it? Real inflammation goes on
+   * while there is something stuck in you. It still costs energy every second,
+   * so it is a price for keeping the pus coming. false to switch it off.
+   */
+  splinterKeepsItGoing: true,
 
   // ---------------------------------------------------------------------------
   // PUS
@@ -74,7 +82,7 @@ export const inflammation = {
   // ---------------------------------------------------------------------------
 
   /** How close to the splinter a neutrophil has to die for it to count. */
-  pusReach: 60,
+  pusReach: 100,
 
   /** How much pus one neutrophil leaves when it dies there. */
   pusPerNeutrophil: 1,

@@ -113,6 +113,19 @@ export interface SplinterDef {
    * in through the skin, and nothing comes off that side.
    */
   corners: { x: number; y: number }[]
+  /**
+   * Keeps the waves coming until it is pushed out. Once the last wave has come,
+   * it comes again every `everySeconds`, with `extraEachTime` more of
+   * `pathogen` each time it repeats. They stop as soon as the splinter is out,
+   * and the level can't be won while it is still in.
+   *
+   * Leave it out and the waves just end, splinter or not.
+   */
+  repeatLastWave?: {
+    everySeconds: number
+    pathogen: string
+    extraEachTime: number
+  }
 }
 
 export interface LevelDef {
@@ -320,8 +333,8 @@ export const theGraze: LevelDef = {
  * It is where INFLAMMATION arrives. No cell can eat something this big. What
  * gets it out is pus: neutrophils that die next to it while it is inflamed.
  * Enough of them and it is pushed back out of the skin. The waves still come,
- * through the hole it leaves, but only half as many. You don't have to get it
- * out to win; it just makes the rest of the level easier.
+ * through the hole it leaves, but only half as many. And you DO have to get it
+ * out to win: until you do, the last wave keeps coming back, bigger each time.
  *
  * The shape is drawn by hand. Its corners were measured off the drawing.
  */
@@ -345,6 +358,9 @@ export const theSplinter: LevelDef = {
       { x: 0.49, y: 0.503 },
       { x: 0.324, y: 0.564 },
     ],
+    // The last wave (the three at 160) comes again every 35 seconds, the same
+    // gap as before it, with one more blue rod each time: 5, then 6, then 7...
+    repeatLastWave: { everySeconds: 35, pathogen: 'blue-bacteria', extraEachTime: 1 },
   },
 
   // About even everywhere. Two blobs on the narrow left of the splinter, one
@@ -382,19 +398,24 @@ export const theSplinter: LevelDef = {
   // the later ones. All off the splinter. Once it is pushed out these come in
   // through the hole instead, half the size.
   waves: [
-    { at: 4, pathogen: 'blue-bacteria', count: 2, entry: 'the-splinter' },
-    { at: 4, pathogen: 'blue-cocci', count: 1, entry: 'the-splinter' },
-    { at: 30, pathogen: 'blue-bacteria', count: 2, entry: 'the-splinter' },
-    { at: 30, pathogen: 'yellow-bacteria', count: 1, entry: 'the-splinter' },
-    { at: 60, pathogen: 'blue-cocci', count: 2, entry: 'the-splinter' },
-    { at: 60, pathogen: 'yellow-cocci', count: 1, entry: 'the-splinter' },
-    { at: 90, pathogen: 'blue-bacteria', count: 3, entry: 'the-splinter' },
-    { at: 90, pathogen: 'yellow-bacteria', count: 1, entry: 'the-splinter' },
+    { at: 4, pathogen: 'blue-bacteria', count: 3, entry: 'the-splinter' },
+    { at: 4, pathogen: 'blue-cocci', count: 2, entry: 'the-splinter' },
+
+    { at: 30, pathogen: 'blue-bacteria', count: 3, entry: 'the-splinter' },
+    { at: 30, pathogen: 'yellow-bacteria', count: 2, entry: 'the-splinter' },
+
+    { at: 60, pathogen: 'blue-cocci', count: 3, entry: 'the-splinter' },
+    { at: 60, pathogen: 'yellow-cocci', count: 2, entry: 'the-splinter' },
+
+    { at: 90, pathogen: 'blue-bacteria', count: 4, entry: 'the-splinter' },
+    { at: 90, pathogen: 'yellow-bacteria', count: 2, entry: 'the-splinter' },
     { at: 90, pathogen: 'red-bacteria', count: 1, entry: 'the-splinter' },
-    { at: 125, pathogen: 'blue-cocci', count: 2, entry: 'the-splinter' },
-    { at: 125, pathogen: 'yellow-cocci', count: 1, entry: 'the-splinter' },
+
+    { at: 125, pathogen: 'blue-cocci', count: 4, entry: 'the-splinter' },
+    { at: 125, pathogen: 'yellow-cocci', count: 2, entry: 'the-splinter' },
     { at: 125, pathogen: 'red-cocci', count: 1, entry: 'the-splinter' },
-    { at: 160, pathogen: 'blue-bacteria', count: 3, entry: 'the-splinter' },
+    
+    { at: 160, pathogen: 'blue-bacteria', count: 4, entry: 'the-splinter' },
     { at: 160, pathogen: 'yellow-bacteria', count: 2, entry: 'the-splinter' },
     { at: 160, pathogen: 'red-bacteria', count: 1, entry: 'the-splinter' },
   ],

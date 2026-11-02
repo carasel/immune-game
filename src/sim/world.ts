@@ -130,6 +130,8 @@ export class World {
   private nextNetId = 1
   private nextInflammationId = 1
   private nextWave = 0
+  /** How many times the splinter's last wave has come again. See `repeatLastWave`. */
+  private repeatsReleased = 0
   /** Counts down to the next starvation death while energy is at zero. */
   private starveIn = balance.starvationSecondsPerCell
 
@@ -259,9 +261,13 @@ export class World {
   /**
    * Has every wave the level had arrived? Until they all have, killing the last
    * bacterium on screen is a lull, not a victory.
+   *
+   * A splinter that keeps its last wave coming always has another one due, so
+   * while it is still in, the answer is no.
    */
   get allWavesReleased(): boolean {
-    return this.nextWave >= this.level.waves.length
+    if (this.nextWave < this.level.waves.length) return false
+    return !(this.level.splinter?.repeatLastWave && this.splinter && !this.splinter.pushedOut)
   }
 
   /**
@@ -310,6 +316,36 @@ export class World {
       this.nextWave++
       this.releaseWave(wave)
     }
+
+    this.releaseDueRepeat()
+  }
+
+  /**
+   * The splinter's last wave, again and again until the splinter is out, with
+   * a few more of one pathogen each time. See `repeatLastWave` in
+   * content/levels.ts.
+   */
+  private releaseDueRepeat(): void {
+    const repeat = this.level.splinter?.repeatLastWave
+    const splinter = this.splinter
+    const waves = this.level.waves
+    if (!repeat || !splinter || splinter.pushedOut || waves.length === 0) return
+    if (this.nextWave < waves.length) return
+
+    const lastAt = Math.max(...waves.map((wave) => wave.at))
+    const due = lastAt + (this.repeatsReleased + 1) * repeat.everySeconds
+    if (this.elapsedSeconds < due) return
+
+    this.repeatsReleased++
+    for (const wave of waves) {
+      if (wave.at === lastAt) this.releaseWave(wave)
+    }
+    this.releaseWave({
+      at: due,
+      pathogen: repeat.pathogen,
+      count: repeat.extraEachTime * this.repeatsReleased,
+      entry: splinter.id,
+    })
   }
 
   private releaseWave(wave: WaveDef): void {
@@ -854,6 +890,10 @@ export class World {
       pathogens: this.pathogens,
       bodyCells: this.bodyCells,
       onBodyCellDied: () => this.economy.chargeForBodyCellDeath(),
+      touchesSplinter: (x: number, y: number, radius: number) =>
+        this.splinter !== null &&
+        !this.splinter.pushedOut &&
+        distanceToSplinter(this.splinter, x, y) <= radius,
     }
 
     for (const patch of this.inflammations) {

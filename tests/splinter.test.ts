@@ -5,6 +5,7 @@ import { theSplinter, TISSUE_VIEW, type LevelDef } from '../src/content/levels'
 import { findPathogen } from '../src/content/pathogens'
 import { polygonContains } from '../src/sim/geometry'
 import { killImmuneCell } from '../src/sim/immuneCells'
+import { strengthOf } from '../src/sim/inflammation'
 import { blockedBySplinter, distanceToSplinter, type Splinter } from '../src/sim/splinter'
 import { World } from '../src/sim/world'
 import { firstOfType, gap, placeBacterium, run, stripTissue } from './helpers'
@@ -273,5 +274,94 @@ describe('pus', () => {
     }
 
     expect(meals[0]).toBe('pathogen')
+  })
+})
+
+describe('keeping it inflamed', () => {
+  it('a circle on the splinter stays at full strength with no bacteria in it', () => {
+    const world = splinterWorld()
+    const splinter = splinterOf(world)
+
+    world.beginInflammation()
+    const patch = world.inflameAt(splinter.tip.x, splinter.tip.y + 30)!
+
+    run(world, inflammation.graceSeconds + inflammation.fadeSeconds + 5)
+
+    expect(patch.alive).toBe(true)
+    expect(strengthOf(patch)).toBe(1)
+  })
+
+  it('calms down as usual once the splinter is out', () => {
+    const world = splinterWorld()
+    const splinter = splinterOf(world)
+
+    world.beginInflammation()
+    const patch = world.inflameAt(splinter.tip.x, splinter.tip.y + 30)!
+    splinter.pushedOut = true
+
+    run(world, inflammation.graceSeconds + inflammation.fadeSeconds + 0.5)
+
+    expect(patch.alive).toBe(false)
+  })
+})
+
+describe('the last wave coming back until it is out', () => {
+  const id = theSplinter.splinter!.id
+  const repeat = { everySeconds: 10, pathogen: 'blue-bacteria', extraEachTime: 1 }
+
+  /** One wave of two clumps at 1 second, repeating every 10, one more rod each time. */
+  function repeatingWorld(): World {
+    return splinterWorld({
+      splinter: { ...theSplinter.splinter!, repeatLastWave: repeat },
+      waves: [
+        { at: 0, pathogen: 'blue-bacteria', count: 4, entry: id },
+        { at: 1, pathogen: 'blue-cocci', count: 2, entry: id },
+      ],
+    })
+  }
+
+  function killEverything(world: World): void {
+    for (const pathogen of world.pathogens) pathogen.alive = false
+  }
+
+  /** Kills what is there, then counts what turns up in the next `seconds`. */
+  function arrivingIn(world: World, seconds: number): number {
+    killEverything(world)
+    run(world, seconds)
+    return world.pathogens.filter((pathogen) => pathogen.alive).length
+  }
+
+  it('repeats only the last wave, with one more rod each time', () => {
+    const world = repeatingWorld()
+
+    run(world, 1.1)
+    expect(world.pathogens).toHaveLength(6)
+
+    expect(arrivingIn(world, 10)).toBe(2 + 1)
+    expect(arrivingIn(world, 10)).toBe(2 + 2)
+    expect(arrivingIn(world, 10)).toBe(2 + 3)
+  })
+
+  it("can't be won while the splinter is in, however clean the tissue is", () => {
+    const world = repeatingWorld()
+
+    run(world, 1.1)
+    killEverything(world)
+    world.step()
+
+    expect(world.allWavesReleased).toBe(false)
+    expect(world.isWon).toBe(false)
+  })
+
+  it('stops once the splinter is out, and then the level can be won', () => {
+    const world = repeatingWorld()
+
+    run(world, 1.1)
+    splinterOf(world).pushedOut = true
+    killEverything(world)
+    run(world, 25)
+
+    expect(world.pathogens.filter((pathogen) => pathogen.alive)).toHaveLength(0)
+    expect(world.isWon).toBe(true)
   })
 })

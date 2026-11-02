@@ -28,6 +28,8 @@ export interface InflammationContext {
   pathogens: Pathogen[]
   bodyCells: BodyCell[]
   onBodyCellDied: (cell: BodyCell) => void
+  /** Does a circle this big here reach a splinter that is still in? */
+  touchesSplinter: (x: number, y: number, radius: number) => boolean
 }
 
 /** 1 at full strength, falling to 0 as it calms down. Everything it does scales by this. */
@@ -70,7 +72,11 @@ export function speedFactorAt(patches: Inflammation[], x: number, y: number, mul
 
 /** One tick of one circle: is the fight still on, and how calm has it got? */
 export function updateInflammation(patch: Inflammation, ctx: InflammationContext): void {
-  if (hasBacteriaIn(patch, ctx.pathogens)) {
+  // Something stuck in the tissue keeps it inflamed, bacteria or not.
+  const onTheSplinter =
+    numbers.splinterKeepsItGoing && ctx.touchesSplinter(patch.x, patch.y, radiusOf(patch))
+
+  if (onTheSplinter || hasBacteriaIn(patch, ctx.pathogens)) {
     // The fight is on: no more waiting, and it swells back to full.
     patch.graceLeft = 0
     patch.calmed = Math.max(0, patch.calmed - ctx.dt / numbers.fadeSeconds)

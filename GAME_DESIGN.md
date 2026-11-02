@@ -346,7 +346,8 @@ A player-ordered ability, introduced on level 3 (the splinter). *Decided 2026-10
 - **It ends when the fight does.** A circle lives while there are bacteria in it. Once it is
   clean it **shrinks and fades slowly**, getting weaker as it goes. A circle placed where there
   are no bacteria yet gets a **short grace time** (around 10s), so it can go down just before a
-  wave.
+  wave. *Decided 2026-11-02:* a circle **touching a splinter that is still in** never fades,
+  bacteria or not. Something stuck in you keeps the inflammation going.
 - **Not automatic, for now.** The old plan had dying body cells set off inflammation by
   themselves. Parked; only the player starts it.
 - **It doesn't speed up recruits.** Inflaming an opening to widen it was the earlier idea, but
@@ -401,8 +402,10 @@ wound makes the threat immediate, putting it far from a vessel makes it hard to 
   - **Bacteria come off anywhere along its sides.**
   - **Pus is a yellow blob** that grows all round the splinter. When there is enough, the
     splinter is pushed out — and leaves a **wound** behind: later waves still come in, through
-    the hole instead, at **half the size** (rounded up). You don't have to get it out to win;
-    the waves end anyway.
+    the hole instead, at **half the size** (rounded up).
+  - **You have to get it out to win.** *Decided 2026-11-02:* until it is out, the last wave
+    keeps coming back every 35s, with **one more blue rod each time**. Before this the level
+    was easy to win just by fighting, so nobody bothered with the splinter.
   - Vessels on the **left side** and the **bottom**, so the big right side is the far side.
     Tissue spread about evenly everywhere.
 - Later levels add colours, then viruses, then both at once (**pneumonia in the lungs** —
