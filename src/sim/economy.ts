@@ -4,7 +4,7 @@ import { balance } from '../content/balance'
  * Energy: the player's money and their health at the same time.
  *
  * Income comes from living body cells. The main drain is body cells dying.
- * Immune cell upkeep and inflammation will plug in here later.
+ * Immune cell upkeep and inflammation drain it a little every second.
  */
 export class Economy {
   energy: number
@@ -14,6 +14,7 @@ export class Economy {
   totalSpent = 0
   totalLostToDeaths = 0
   totalLostToUpkeep = 0
+  totalLostToInflammation = 0
 
   constructor(startingEnergy: number = balance.startingEnergy) {
     this.energy = startingEnergy
@@ -37,6 +38,13 @@ export class Economy {
     const amount = perSecond * seconds
     this.drain(amount)
     this.totalLostToUpkeep += amount
+  }
+
+  /** What inflammation costs. Called every tick, for each inflamed circle. */
+  chargeInflammation(perSecond: number, seconds: number): void {
+    const amount = perSecond * seconds
+    this.drain(amount)
+    this.totalLostToInflammation += amount
   }
 
   canAfford(cost: number): boolean {

@@ -82,6 +82,12 @@ export interface ImmuneCellDef {
   lifespanSeconds?: number
 
   /**
+   * Does it leave pus behind when it dies? Pus is mostly dead neutrophils, and
+   * it is what pushes a splinter out. See content/inflammation.ts.
+   */
+  leavesPus?: boolean
+
+  /**
    * Degranulation: throwing poison at whatever it can see. Leave it out and the
    * cell has no such weapon.
    *
@@ -191,6 +197,9 @@ export const neutrophil: ImmuneCellDef = {
 
   /** 90 seconds. Everything else about the neutrophil follows from this. */
   lifespanSeconds: 90,
+
+  // Pus is mostly dead neutrophils. A macrophage that dies leaves none.
+  leavesPus: true,
 
   net: {
     /** About three body cells across. Enough to cover a cluster at the wound. */

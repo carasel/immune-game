@@ -1,10 +1,17 @@
 import Phaser from 'phaser'
 import { balance } from '../content/balance'
 import { findImmuneCell, immuneCells } from '../content/cells'
+import { inflammation } from '../content/inflammation'
 import { HUD_HEIGHT, WORLD } from '../content/levels'
 import type { World } from '../sim/world'
 import { formatClock } from './format'
-import { drawBacteriumIcon, drawBodyCellIcon, drawEnergyIcon, drawImmuneCellIcon } from './icons'
+import {
+  drawBacteriumIcon,
+  drawBodyCellIcon,
+  drawEnergyIcon,
+  drawImmuneCellIcon,
+  drawInflammationIcon,
+} from './icons'
 import { font, immunePalette, palette, textColour } from './palette'
 
 interface SpeedButton {
@@ -21,6 +28,15 @@ interface RecruitRow {
 
 /** Left of the speed buttons, which are pinned to the right-hand end. */
 const RECRUIT_BUTTON_X = 700
+
+/**
+ * Just left of the recruit button. Only shown on levels that have inflammation,
+ * but the space is always kept so nothing jumps about between levels.
+ */
+const INFLAME_BUTTON_X = 646
+
+/** Where the clock's right-hand edge sits: clear of the inflammation button. */
+const CLOCK_RIGHT_X = 612
 
 /** Where the immune cell counts start, and how far apart their slots sit. */
 const IMMUNE_READOUT_X = 410
@@ -57,6 +73,8 @@ export class HudScene extends Phaser.Scene {
 
   private recruitHint!: Phaser.GameObjects.Text
   private recruitButton!: Phaser.GameObjects.Rectangle
+  private inflameButton!: Phaser.GameObjects.Rectangle
+  private inflameIcon!: Phaser.GameObjects.Graphics
   private recruitMenu!: Phaser.GameObjects.Container
   private menuBounds!: Phaser.Geom.Rectangle
 
@@ -143,9 +161,10 @@ export class HudScene extends Phaser.Scene {
       .setOrigin(0, 0.5)
 
     // Right-aligned, so it grows leftwards into empty space rather than sliding
-    // underneath the buttons.
+    // underneath the buttons. Just the time: the lit-up speed button already
+    // says how fast it is going.
     this.clockText = this.add
-      .text(660, midY, '', {
+      .text(CLOCK_RIGHT_X, midY, '', {
         fontFamily: font.family,
         fontSize: '13px',
         color: textColour.dim,
@@ -167,6 +186,7 @@ export class HudScene extends Phaser.Scene {
     // which level this is, so it is the one that can offer another go.
 
     this.buildSpeedButtons(midY)
+    this.buildInflameButton(midY)
     this.buildRecruitButton(midY)
     this.buildRecruitMenu()
     this.bindKeys()
@@ -176,6 +196,11 @@ export class HudScene extends Phaser.Scene {
   update(time: number): void {
     this.refresh()
     this.refreshStarvingWarning(time)
+
+    // Paused, the clock blinks rather than saying so: there is no room for the
+    // word, and the lit-up pause button already says it.
+    const paused = ((this.registry.get('speed') as number) ?? 1) === 0
+    this.clockText.setAlpha(paused ? 0.45 + 0.55 * Math.abs(Math.sin(time / 400)) : 1)
   }
 
   private buildSpeedButtons(midY: number): void {
@@ -205,6 +230,25 @@ export class HudScene extends Phaser.Scene {
       this.speedButtons.push({ speed, box })
       x += width + gap
     }
+  }
+
+  /**
+   * The red inflammation button. Press it, then click the tissue. Pressing it
+   * again while it is waiting calls it off, same as Escape or a right-click.
+   */
+  private buildInflameButton(y: number): void {
+    this.inflameButton = this.add
+      .rectangle(INFLAME_BUTTON_X, y, 44, 26, palette.hudButton)
+      .setInteractive({ useHandCursor: true })
+
+    this.inflameIcon = this.add.graphics()
+    drawInflammationIcon(this.inflameIcon, INFLAME_BUTTON_X, y, 8)
+
+    this.inflameButton.on('pointerdown', () => {
+      this.setMenuOpen(false)
+      if (this.world.isPlacingInflammation) this.world.cancelInflammation()
+      else this.world.beginInflammation()
+    })
   }
 
   /**
@@ -307,6 +351,7 @@ export class HudScene extends Phaser.Scene {
     }
 
     this.world.cancelRecruit()
+    this.world.cancelInflammation()
     this.setMenuOpen(true)
   }
 
@@ -385,9 +430,7 @@ export class HudScene extends Phaser.Scene {
     const bacteria = this.world.livingPathogenCount
     this.bacteriaText.setText(bacteria === 0 ? '—' : `${bacteria}`)
 
-    this.clockText.setText(
-      speed === 0 ? 'PAUSED' : `${formatClock(this.world.elapsedSeconds)}   ${speed}x`,
-    )
+    this.clockText.setText(formatClock(this.world.elapsedSeconds))
 
     this.drawEnergyBar(economy.energy)
 
@@ -418,9 +461,25 @@ export class HudScene extends Phaser.Scene {
       recruiting || this.recruitMenu.visible ? palette.hudButtonActive : palette.hudButton,
     )
 
+    // Inflammation: only on levels that have it, dim when you can't afford a
+    // second of it, and lit while it is waiting for you to click the tissue.
+    const canInflame = this.world.canInflame
+    const placing = this.world.isPlacingInflammation
+    const affordable = this.world.economy.canAfford(inflammation.costPerSecond)
+
+    this.inflameButton.setVisible(canInflame)
+    this.inflameIcon.setVisible(canInflame)
+    this.inflameButton.setFillStyle(placing ? palette.hudButtonActive : palette.hudButton)
+    this.inflameIcon.setAlpha(affordable || placing ? 1 : 0.4)
+
+    // One hint line, shared: you can only be placing one thing at a time.
     const def = recruiting ? findImmuneCell(recruiting) : undefined
-    this.recruitHint.setText(def ? `click a vessel to send the ${def.name.toLowerCase()} in` : '')
-    this.recruitHint.setVisible(def !== undefined)
+    let hint = ''
+    if (placing) hint = `click the tissue to inflame it — ${inflammation.costPerSecond} energy a second`
+    else if (def) hint = `click a vessel to send the ${def.name.toLowerCase()} in`
+
+    this.recruitHint.setText(hint)
+    this.recruitHint.setVisible(hint !== '')
   }
 
   /**

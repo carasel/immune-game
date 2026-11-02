@@ -2,7 +2,7 @@ import type Phaser from 'phaser'
 import { TISSUE_VIEW } from '../content/levels'
 import type { Rect } from '../sim/geometry'
 import type { World } from '../sim/world'
-import { palette } from './palette'
+import { palette, splinterPalette } from './palette'
 
 /**
  * A little map of a level, drawn inside `box`.
@@ -60,6 +60,15 @@ export function drawLevelMap(
       atY(corridor.y),
       corridor.width * scale,
       corridor.height * scale,
+    )
+  }
+
+  // A splinter as its own shape, in wood, so the card shows what you are up against.
+  if (world.splinter) {
+    graphics.fillStyle(splinterPalette.wood, 1)
+    graphics.fillPoints(
+      world.splinter.outline.map((point) => ({ x: atX(point.x), y: atY(point.y) })),
+      true,
     )
   }
 

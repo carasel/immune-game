@@ -46,6 +46,8 @@ export interface GranuleContext {
   bounds: Size
   /** Called once for each body cell a granule finishes off. */
   onBodyCellDied: (cell: BodyCell) => void
+  /** Is (x, y) inside something solid? A granule that flies into it is spent. */
+  isSolid: (x: number, y: number) => boolean
 }
 
 /**
@@ -67,7 +69,7 @@ export function updateGranule(granule: Granule, ctx: GranuleContext): void {
     granule.x > ctx.bounds.width ||
     granule.y > ctx.bounds.height
 
-  if (granule.rangeLeft <= 0 || strayed) {
+  if (granule.rangeLeft <= 0 || strayed || ctx.isSolid(granule.x, granule.y)) {
     granule.alive = false
     return
   }

@@ -95,6 +95,39 @@ export interface WaveDef {
   entry?: string
 }
 
+/**
+ * Something stuck in the tissue: a splinter. It is solid, so nothing walks
+ * through it, and it is dirty, so waves can come off it. A wave whose `entry`
+ * is the splinter's `id` appears somewhere along its sides.
+ *
+ * Pus can push it out (see content/inflammation.ts). After that it is a hole,
+ * and the waves still due from it come in through the hole instead, smaller.
+ */
+export interface SplinterDef {
+  /** What a wave puts in its `entry` to come off the splinter. */
+  id: string
+  label: string
+  /**
+   * The corners, in order round the outline, as fractions of the tissue area
+   * like the blobs. A side lying along the edge of the screen is where it went
+   * in through the skin, and nothing comes off that side.
+   */
+  corners: { x: number; y: number }[]
+  /**
+   * Keeps the waves coming until it is pushed out. Once the last wave has come,
+   * it comes again every `everySeconds`, with `extraEachTime` more of
+   * `pathogen` each time it repeats. They stop as soon as the splinter is out,
+   * and the level can't be won while it is still in.
+   *
+   * Leave it out and the waves just end, splinter or not.
+   */
+  repeatLastWave?: {
+    everySeconds: number
+    pathogen: string
+    extraEachTime: number
+  }
+}
+
 export interface LevelDef {
   id: string
   name: string
@@ -123,6 +156,13 @@ export interface LevelDef {
   startingCells: StartingCellDef[]
   /** When the pathogens turn up, and how many. */
   waves: WaveDef[]
+  /** Something stuck in the tissue. Most levels don't have one. */
+  splinter?: SplinterDef
+  /**
+   * Can the player inflame the tissue on this level? Leave it out for no. It
+   * arrives with the splinter, so the first two levels don't have it.
+   */
+  inflammation?: boolean
 }
 
 /**
@@ -283,6 +323,105 @@ export const theGraze: LevelDef = {
 }
 
 /**
+ * LEVEL 3 — a splinter.
+ *
+ * Not a hole this time but a THING: a dirty sliver of wood stuck in from the
+ * skin, reaching about halfway down. It is solid, so it walls the top of the
+ * tissue into a narrow left side and a wide right side, and the only way
+ * between them is round its tip. Bacteria come off it anywhere along its sides.
+ *
+ * It is where INFLAMMATION arrives. No cell can eat something this big. What
+ * gets it out is pus: neutrophils that die next to it while it is inflamed.
+ * Enough of them and it is pushed back out of the skin. The waves still come,
+ * through the hole it leaves, but only half as many. And you DO have to get it
+ * out to win: until you do, the last wave keeps coming back, bigger each time.
+ *
+ * The shape is drawn by hand. Its corners were measured off the drawing.
+ */
+export const theSplinter: LevelDef = {
+  id: 'the-splinter',
+  name: 'The Splinter',
+  blurb: "A dirty splinter is stuck in your finger. Inflame it, and pus can push it out.",
+  seed: 20261004,
+  bodyCellCount: 60,
+  clusterCount: 8,
+  inflammation: true,
+
+  // Clockwise from where it went in at the top left. The top side lies along
+  // the skin, so nothing comes off it; the slanted bottom is the tip.
+  splinter: {
+    id: 'the-splinter',
+    label: 'splinter',
+    corners: [
+      { x: 0.328, y: 0 },
+      { x: 0.52, y: 0 },
+      { x: 0.49, y: 0.503 },
+      { x: 0.324, y: 0.564 },
+    ],
+    // The last wave (the three at 160) comes again every 35 seconds, the same
+    // gap as before it, with one more blue rod each time: 5, then 6, then 7...
+    repeatLastWave: { everySeconds: 35, pathogen: 'blue-bacteria', extraEachTime: 1 },
+  },
+
+  // About even everywhere. Two blobs on the narrow left of the splinter, one
+  // under its tip, and the rest spread over the wide right.
+  blobs: [
+    { x: 0.15, y: 0.22, size: 1.9 },
+    { x: 0.17, y: 0.78, size: 2.1 },
+    { x: 0.42, y: 0.74, size: 1.9 },
+    { x: 0.68, y: 0.2, size: 2.0 },
+    { x: 0.88, y: 0.3, size: 1.8 },
+    { x: 0.66, y: 0.55, size: 2.2 },
+    { x: 0.87, y: 0.72, size: 1.9 },
+    { x: 0.64, y: 0.86, size: 1.9 },
+  ],
+
+  // One on the narrow left side and one at the bottom under the tip, so the big
+  // right-hand side is the far side. Getting there means walking round the tip.
+  openings: [
+    { id: 'vessel-left', label: 'vessel', edge: 'left', along: 0.42, width: 150, depth: 68 },
+    { id: 'vessel-bottom', label: 'vessel', edge: 'bottom', along: 0.42, width: 150, depth: 66 },
+  ],
+
+  // No wound. Everything comes off the splinter.
+  entries: [],
+
+  // A macrophage on each side of the splinter, and a neutrophil down by the
+  // bottom vessel, just under the tip.
+  startingCells: [
+    { cell: 'macrophage', count: 1, at: { x: 0.2, y: 0.42 } },
+    { cell: 'macrophage', count: 1, at: { x: 0.7, y: 0.38 } },
+    { cell: 'neutrophil', count: 1, at: { x: 0.5, y: 0.8 } },
+  ],
+
+  // Rods and clumps together, blue mostly, a yellow in most waves and a red in
+  // the later ones. All off the splinter. Once it is pushed out these come in
+  // through the hole instead, half the size.
+  waves: [
+    { at: 4, pathogen: 'blue-bacteria', count: 3, entry: 'the-splinter' },
+    { at: 4, pathogen: 'blue-cocci', count: 2, entry: 'the-splinter' },
+
+    { at: 30, pathogen: 'blue-bacteria', count: 3, entry: 'the-splinter' },
+    { at: 30, pathogen: 'yellow-bacteria', count: 2, entry: 'the-splinter' },
+
+    { at: 60, pathogen: 'blue-cocci', count: 3, entry: 'the-splinter' },
+    { at: 60, pathogen: 'yellow-cocci', count: 2, entry: 'the-splinter' },
+
+    { at: 90, pathogen: 'blue-bacteria', count: 4, entry: 'the-splinter' },
+    { at: 90, pathogen: 'yellow-bacteria', count: 2, entry: 'the-splinter' },
+    { at: 90, pathogen: 'red-bacteria', count: 1, entry: 'the-splinter' },
+
+    { at: 125, pathogen: 'blue-cocci', count: 4, entry: 'the-splinter' },
+    { at: 125, pathogen: 'yellow-cocci', count: 2, entry: 'the-splinter' },
+    { at: 125, pathogen: 'red-cocci', count: 1, entry: 'the-splinter' },
+    
+    { at: 160, pathogen: 'blue-bacteria', count: 4, entry: 'the-splinter' },
+    { at: 160, pathogen: 'yellow-bacteria', count: 2, entry: 'the-splinter' },
+    { at: 160, pathogen: 'red-bacteria', count: 1, entry: 'the-splinter' },
+  ],
+}
+
+/**
  * THE PETRI DISH — the playtest level.
  *
  * This one is not a level to win. It is a bench to put things on and look at
@@ -436,7 +575,7 @@ export const thePetriDish: LevelDef = {
  * The Petri Dish goes last: it is a bench rather than a place, and it is not
  * part of anybody's progress through the game.
  */
-export const levels: LevelDef[] = [theCut, theGraze, thePetriDish]
+export const levels: LevelDef[] = [theCut, theGraze, theSplinter, thePetriDish]
 
 /** Returns undefined for an unknown id rather than crashing. */
 export function findLevel(id: string): LevelDef | undefined {

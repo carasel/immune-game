@@ -333,16 +333,45 @@ line while it spins up.
 
 ## 7. Inflammation
 
-A player-ordered ability targeting an area, unlocked after level 1. Costs energy per second
-while active. Speeds up immune cells arriving in that zone and slows pathogens.
+A player-ordered ability, introduced on level 3 (the splinter). *Decided 2026-10-04:*
 
-Because reinforcements now have to walk in from the side openings (§3), inflammation has an
-obvious second job: **inflaming an opening widens it**, letting more cells through faster.
-That is genuinely what histamine does — it makes vessels leaky so white blood cells can pour
-out. It also means the mast cell has a clear, accurate role waiting for it.
+- **Placing it:** a red inflammation button in the HUD, next to the recruit "+". Click it,
+  then click the tissue, and a **fixed-size circle** goes red there. Esc or right-click cancels.
+- **Cost:** energy **per second** while the circle is alive, nothing upfront. You can have as
+  many as you can pay for.
+- **Inside the circle:** immune cells move faster, bacteria move slower, and **body cells are
+  slowly damaged**. It is a trade, not a free buff, the same idea as granules and NETs.
+- **Overlap doesn't stack.** Inflamed is inflamed; two circles on one spot cost double for
+  nothing.
+- **It ends when the fight does.** A circle lives while there are bacteria in it. Once it is
+  clean it **shrinks and fades slowly**, getting weaker as it goes. A circle placed where there
+  are no bacteria yet gets a **short grace time** (around 10s), so it can go down just before a
+  wave. *Decided 2026-11-02:* a circle **touching a splinter that is still in** never fades,
+  bacteria or not. Something stuck in you keeps the inflammation going.
+- **Not automatic, for now.** The old plan had dying body cells set off inflammation by
+  themselves. Parked; only the player starts it.
+- **It doesn't speed up recruits.** Inflaming an opening to widen it was the earlier idea, but
+  recruits arrive because you order them, so it didn't fit. That leaves the histamine /
+  leaky-vessel job for the mast cell to find a different shape for.
+- Every number (radius, cost, speed-up, slow-down, tissue damage, grace time, fade time, pus
+  needed) lives in `src/content/` with a comment. Claude suggests starting values; they get
+  tuned in play.
 
-Inflammation also happens **automatically** where body cells die, whether the player wants
-it or not.
+### The splinter and pus
+
+A splinter is a foreign object too big for any cell to eat. A real body gets rid of one in two
+ways: **pus**, where neutrophils pile in, can't eat it, and die there, and the abscess points to
+the skin and bursts, taking the splinter with it; or a **granuloma**, where macrophages fuse into
+giant cells and wall it in. Inflammation alone doesn't push anything out (swelling is fluid,
+not pressure in one direction). Its job is keeping neutrophils fighting at the splinter.
+
+- **Pus comes from neutrophils that die near the splinter while it is inside an inflamed
+  circle.** Not from dead tissue, not from macrophages, and not from neutrophils dying there
+  with no inflammation.
+- When enough pus has built up, the splinter is **pushed out** and stops shedding bacteria.
+- **Macrophages eat pus.** They really are the clean-up crew, so this undoes progress, but it
+  is their **lowest priority**, below bacteria and debris.
+- Walling it off (granuloma) is **not in this level**. It would suit a later TB-style level.
 
 ---
 
@@ -363,6 +392,22 @@ wound makes the threat immediate, putting it far from a vessel makes it hard to 
   away from both scratches, so nothing you recruit arrives where the trouble is. This is where
   **cocci** turn up, and the level is built round them: they are slow enough that the walk up
   from the vessels is survivable, which is the whole reason the new enemy is the slow one.
+- **Level 3 — the splinter.** Something dirty stuck in the tissue, shedding **both rods and
+  cocci** — blue, yellow and some red — in waves on the usual timer. Neutrophils and
+  macrophages. This is where inflammation arrives (§7); levels 1 and 2 don't have it.
+  - **Drawn by hand:** a brown wedge in from the top (skin) edge, from about a third of the way
+    across to just past halfway, reaching a bit over halfway down, its tip cut at a slant.
+  - **It is solid.** Nothing walks through it, so it splits the top of the tissue into a
+    narrow left side and a wide right side.
+  - **Bacteria come off anywhere along its sides.**
+  - **Pus is a yellow blob** that grows all round the splinter. When there is enough, the
+    splinter is pushed out — and leaves a **wound** behind: later waves still come in, through
+    the hole instead, at **half the size** (rounded up).
+  - **You have to get it out to win.** *Decided 2026-11-02:* until it is out, the last wave
+    keeps coming back every 35s, with **one more blue rod each time**. Before this the level
+    was easy to win just by fighting, so nobody bothered with the splinter.
+  - Vessels on the **left side** and the **bottom**, so the big right side is the far side.
+    Tissue spread about evenly everywhere.
 - Later levels add colours, then viruses, then both at once (**pneumonia in the lungs** —
   bacteria and viruses together), then the parasite levels.
 
@@ -458,11 +503,13 @@ in dead body cells, and that is exactly what happens in a real infection.
 ## 11. Open questions
 
 - Do bacteria collide with anything at all, or pass through everything?
-- Does a wave arrive on a timer, or when the previous wave is cleared?
-- What does the mast cell do mechanically? Must be biologically accurate. (Inflaming an
-  opening to widen it is the obvious accurate fit — see §7.)
+- What does the mast cell do mechanically? Must be biologically accurate. Inflaming an
+  opening was the obvious fit, but recruits arrive because you order them, so it needs
+  another shape (§7).
 - Is there a lymph node / off-screen space where adaptive immunity spins up, or does it all
   happen on the visible tissue?
+- Recruits walk over body cells however much they are slowed. Movement through tissue
+  probably wants a bigger rethink, later.
 
 ---
 
@@ -729,3 +776,41 @@ in dead body cells, and that is exactly what happens in a real infection.
   played greedily it is still won, at 179s, but with 38/56 tissue rather than 49/56. So the
   ceiling barely moved and the floor fell out, which is the shape we wanted: it punishes
   ignoring it much harder than it punishes playing it.
+
+*2026-10-04*
+
+- **Waves arrive on a timer**, not when the last one is cleared. That's already how it works;
+  it was still sitting in the open questions.
+- **Tuning happens as we playtest**, alongside everything else, not as a separate last step.
+- **Narrow vessels as bottlenecks are parked.** Cells go over body cells however much they're
+  slowed, so a narrow vessel wouldn't bite. Movement through tissue probably needs a bigger
+  change first.
+- **Inflammation and the splinter** (§7, §8): fixed-size circles paid per second; faster immune
+  cells, slower bacteria, hurt tissue; no stacking; fades once clean, with a short grace time.
+  The splinter sheds rods and cocci and is pushed out by pus, which only neutrophils dying in an
+  inflamed circle round it make. Macrophages eat pus as their lowest priority.
+- **The splinter level's layout and rules** (§8): drawn by hand; solid; sheds from anywhere
+  along its sides; pus is a yellow blob all round it; once pushed out, later waves come through
+  the hole at half size. Inflammation is level 3 onwards only.
+- **Getting round the splinter is wall-following.** Anything that bumps into it slides along
+  it, and keeps sliding the same way round until its path is clear, so it can't dither at a
+  corner. It never slides up a side towards the skin, which is a dead end. A neutrophil sent
+  straight across from the left goes round the tip and arrives in about 22s.
+- **Starting numbers, first guesses (all in `content/inflammation.ts`):** circle radius 90,
+  1 energy a second, cells ×1.5, bacteria ×0.6, tissue damage 0.006 a second (a blue
+  bacterium does 0.09), 10s grace, 6s to calm down. Pus: 3 neutrophils pushes it out, within
+  60px of the splinter. A macrophage takes 0.1 of a neutrophil's worth per mouthful, 4s each.
+  The first try (5 neutrophils, half a neutrophil per mouthful) could never be pushed out:
+  the macrophages ate it as fast as it was made.
+- *Measured on the splinter, with scripted players:* left alone it is lost at 178s. Only ever
+  chasing the nearest bacterium (no recruits) loses at 253s. Chasing plus keeping three
+  neutrophils coming from the bottom vessel wins at 165s with 54/60. Playing for the splinter
+  (inflame the tip, park neutrophils there, NET them at 30s old) pushes it out at 40s and
+  wins at 164s, also with 54/60 but with less energy left. **So right now inflammation and
+  pus are optional on the level that teaches them.** Obvious levers if that wants changing:
+  bigger or more later waves (so halving them matters more), fewer starting cells, or more
+  reds. Left for playtesting.
+- **The HUD clock shows just the time now**, and blinks when paused. The speed it used to
+  show is already on the lit-up speed button, and the room went to the inflammation button.
+- **The level select sizes its cards to fit.** Four levels at the old width ran off both
+  edges of the screen.

@@ -219,15 +219,17 @@ describe('mutating as they divide', () => {
     expect(up / children).toBeLessThan(balance.mutationUpChance * 2)
   })
 
-  it('drifts back down far more rarely than it climbs', () => {
+  it('drifts back down more rarely than it climbs', () => {
     const { children, up, down } = generation(yellowBacteria)
 
     // Rare, but it does happen: the ladder is not a one-way escalator.
     expect(down).toBeGreaterThan(0)
     expect(down / children).toBeLessThan(balance.mutationDownChance * 3)
 
-    // Nine to one, give or take what 480 rolls can show.
-    expect(up).toBeGreaterThan(down * 4)
+    // As many times more often up as the balance says, give or take what 480
+    // rolls can show, so at least half that.
+    const timesMoreOftenUp = balance.mutationUpChance / balance.mutationDownChance
+    expect(up).toBeGreaterThan(down * (timesMoreOftenUp / 2))
   })
 
   it('never drifts a blue downwards, because there is nothing below it', () => {
