@@ -1,6 +1,12 @@
 import { configDefaults, defineConfig } from 'vitest/config'
 
 export default defineConfig({
+  /**
+   * GitHub Pages serves the game from `/immune-game/`, not the site root, so
+   * the built page has to ask for its scripts relative to itself. With the
+   * default `/` it asks the root instead and you get a blank screen.
+   */
+  base: './',
   server: {
     port: 5173,
   },
