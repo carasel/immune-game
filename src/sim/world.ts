@@ -430,6 +430,8 @@ export class World {
       // Staggered, so a whole wave doesn't split at the same instant.
       divideIn: def.divideEverySeconds * randomRange(this.rng, 0.6, 1.1),
       wanderIn: randomRange(this.rng, 0, def.wanderChangeSeconds),
+      targetId: null,
+      fleeing: false,
     })
   }
 
@@ -712,6 +714,8 @@ export class World {
       fireIn: 0,
       meal: null,
       order: null,
+      preyId: null,
+      huskId: null,
       diedAtSeconds: null,
     }
 
@@ -1214,6 +1218,9 @@ export class World {
       alive: true,
       divideIn: childDef.divideEverySeconds * randomRange(this.rng, 0.8, 1.2),
       wanderIn: randomRange(this.rng, 0, childDef.wanderChangeSeconds),
+      // Its parent's meal isn't its meal: it picks its own.
+      targetId: null,
+      fleeing: false,
     }
   }
 

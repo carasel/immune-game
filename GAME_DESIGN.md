@@ -159,6 +159,10 @@ Every immune cell is autonomous by default:
 - **Wander** randomly when nothing is in range.
 - **Seek and attack** the nearest pathogen within vision range. Vision range differs per
   cell type.
+- **Stick with what they picked.** Once a cell (or a bacterium) is going for something, it
+  only swaps to something else if that is clearly closer — `retargetMargin` in `balance.ts`,
+  20% to start with — or the first target is gone or out of sight. Without it, anything
+  halfway between two targets flickers back and forth between them and gets nowhere.
 
 ### How the player intervenes
 
@@ -599,7 +603,12 @@ in dead body cells, and that is exactly what happens in a real infection.
   exist, in both shapes.
 - **Green runs away, and what that means depends on its shape.** Green is the first rung that
   is behaviour rather than numbers: it watches for immune cells and swims directly away from
-  any within 120px. 120 sits inside a macrophage's 150 sight and a neutrophil's 190, so you
+  the middle of all of them within 120px — the middle rather than the nearest, so one caught
+  between two hunters doesn't flicker between running from each. Closer hunters count for
+  more, fading to nothing at the edge, so one drifting in and out of range doesn't make it
+  jerk round. Once it starts running it
+  keeps going until nothing is within 20% further than that (`stopFleeingMargin` in
+  `balance.ts`), or it shudders on the edge of its range. 120 sits inside a macrophage's 150 sight and a neutrophil's 190, so you
   watch the chase start before the running does, and outside a granule's 90 throw, so a
   neutrophil still has to close to shoot.
   - A green **rod** is a coward: it drops a body cell it was part-way through eating in order

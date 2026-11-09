@@ -116,6 +116,8 @@ export function placeBacterium(
     // Far enough away that neither fires during a test.
     divideIn: Number.MAX_SAFE_INTEGER,
     wanderIn: Number.MAX_SAFE_INTEGER,
+    targetId: null,
+    fleeing: false,
   }
 
   world.pathogens.push(bacterium)
