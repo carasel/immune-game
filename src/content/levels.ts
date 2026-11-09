@@ -547,6 +547,9 @@ export const thePetriDish: LevelDef = {
   // the right so you can watch the two shapes of one colour side by side. One
   // of each, because a testbed wants a specimen and not a swarm.
   //
+  // Spirals only come in blue, yellow and red so far. Each one drops through
+  // the middle, halfway between its colour's rung and the next.
+  //
   // Then, at 115, a finale — three purples at once through the middle dropper,
   // so the level can actually be won rather than just looked at. Clear
   // everything after that wave has landed and the tissue is saved.
@@ -556,10 +559,13 @@ export const thePetriDish: LevelDef = {
   waves: [
     { at: 4, pathogen: 'blue-bacteria', count: 1, entry: 'left-dropper' },
     { at: 4, pathogen: 'blue-cocci', count: 1, entry: 'right-dropper' },
+    { at: 11, pathogen: 'blue-spiral', count: 1, entry: 'middle-dropper' },
     { at: 19, pathogen: 'yellow-bacteria', count: 1, entry: 'left-dropper' },
     { at: 19, pathogen: 'yellow-cocci', count: 1, entry: 'right-dropper' },
+    { at: 26, pathogen: 'yellow-spiral', count: 1, entry: 'middle-dropper' },
     { at: 34, pathogen: 'red-bacteria', count: 1, entry: 'left-dropper' },
     { at: 34, pathogen: 'red-cocci', count: 1, entry: 'right-dropper' },
+    { at: 41, pathogen: 'red-spiral', count: 1, entry: 'middle-dropper' },
     { at: 49, pathogen: 'green-bacteria', count: 1, entry: 'left-dropper' },
     { at: 49, pathogen: 'green-cocci', count: 1, entry: 'right-dropper' },
     { at: 64, pathogen: 'orange-bacteria', count: 1, entry: 'left-dropper' },
