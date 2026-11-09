@@ -23,7 +23,8 @@ import {
   updateInflammation,
   type Inflammation,
 } from './inflammation'
-import { bodyCellsUnder, updateNet, type Net } from './nets'
+import { crowdPathogens, settleTissue, type Mover } from './crowding'
+import { bodyCellsUnder, isTrapped, updateNet, type Net } from './nets'
 import {
   killImmuneCell,
   separateImmuneCells,
@@ -184,6 +185,8 @@ export class World {
     this.updatePathogens()
     this.economy.addIncome(this.livingBodyCellCount, SECONDS_PER_TICK)
     this.updateImmuneCells()
+    // After everything has moved, so the tissue gives way to wherever it all ended up.
+    this.updateTissue()
     this.updateGranules()
     this.starveImmuneCells()
     // Last, so it sees every cell that died this tick, whatever killed it.
@@ -1180,15 +1183,52 @@ export class World {
       newborns.push(this.splitOff(pathogen, def))
     }
 
-    // Splitting next to the splinter can put the new one inside it.
-    for (const newborn of newborns) {
-      const def = findPathogen(newborn.defId)
-      if (!def) continue
+    this.pathogens.push(...newborns)
 
-      this.keepOutOfSplinter(newborn, pathogenRadius(newborn, def))
+    // Bacteria only overlap each other so far, so a swarm spreads out and shows
+    // how big it really is.
+    crowdPathogens(
+      this.pathogens,
+      (pathogen) => this.pathogenRadiusOf(pathogen),
+      (pathogen) => isTrapped(pathogen, this.nets),
+      this.bounds,
+    )
+
+    // Splitting, or being crowded, next to the splinter can put one inside it.
+    if (this.splinter && !this.splinter.pushedOut) {
+      for (const pathogen of this.pathogens) {
+        if (pathogen.alive) this.keepOutOfSplinter(pathogen, this.pathogenRadiusOf(pathogen))
+      }
+    }
+  }
+
+  private pathogenRadiusOf(pathogen: Pathogen): number {
+    const def = findPathogen(pathogen.defId)
+    return def ? pathogenRadius(pathogen, def) : 0
+  }
+
+  /**
+   * Body cells give way to everything that has pushed into them this tick, shove
+   * their neighbours along, and spring back where nothing is pushing.
+   */
+  private updateTissue(): void {
+    const movers: Mover[] = []
+
+    for (const cell of this.immuneCells) {
+      if (!cell.alive) continue
+      const def = findImmuneCell(cell.defId)
+      if (def) movers.push({ x: cell.x, y: cell.y, radius: def.radius })
     }
 
-    this.pathogens.push(...newborns)
+    for (const pathogen of this.pathogens) {
+      if (pathogen.alive) {
+        movers.push({ x: pathogen.x, y: pathogen.y, radius: this.pathogenRadiusOf(pathogen) })
+      }
+    }
+
+    settleTissue(this.bodyCells, movers, SECONDS_PER_TICK, this.bounds, (cell) =>
+      this.keepOutOfSplinter(cell, cell.radius),
+    )
   }
 
   /**

@@ -1,4 +1,5 @@
 import { cocciRadius, type PathogenDef } from '../content/pathogens'
+import { tissueSpeedFactor, TOUCHING_SLACK } from './crowding'
 import { clamp, distance, type Size, type Vec2 } from './geometry'
 import type { ImmuneCell } from './immuneCells'
 import { isTrapped, type Net } from './nets'
@@ -105,8 +106,10 @@ export function loseBall(pathogen: Pathogen, def: PathogenDef): void {
  * straight for it, and eat into it once they touch. Otherwise they wander.
  * From green up they also watch their own backs — see `fleeRange`.
  *
- * Bacteria overlap everything — each other, body cells, the vessels — so there
- * is no collision to resolve here. They just swim.
+ * Tissue is in a bacterium's way just like it is for an immune cell: it pushes
+ * body cells aside, or squeezes past ones that won't give. Bacteria also crowd
+ * each other, but that is sorted out once they have all moved — see
+ * crowding.ts.
  */
 export function updatePathogen(
   pathogen: Pathogen,
@@ -121,7 +124,7 @@ export function updatePathogen(
   const biting =
     target !== undefined &&
     distance(pathogen.x, pathogen.y, target.x, target.y) <=
-      target.radius + pathogenRadius(pathogen, def)
+      target.radius + pathogenRadius(pathogen, def) + TOUCHING_SLACK
 
   // Fear or hunger, for the colours that have the choice. A green rod is a
   // coward and drops its meal to run; a green cocci crawls, so running could
@@ -165,10 +168,16 @@ export function updatePathogen(
   swim(pathogen, def, ctx)
 }
 
-/** Move forwards, bouncing off the edges of the tissue. */
+/** Move forwards, pushing through the tissue and bouncing off the edges of it. */
 function swim(pathogen: Pathogen, def: PathogenDef, ctx: PathogenContext): void {
-  const step = def.speed * ctx.speedFactorAt(pathogen.x, pathogen.y) * ctx.dt
   const edge = pathogenRadius(pathogen, def)
+  let step = def.speed * ctx.speedFactorAt(pathogen.x, pathogen.y) * ctx.dt
+
+  const ahead = {
+    x: pathogen.x + Math.cos(pathogen.angle) * step,
+    y: pathogen.y + Math.sin(pathogen.angle) * step,
+  }
+  step *= tissueSpeedFactor(ctx.bodyCells, pathogen, ahead, edge)
 
   let x = pathogen.x + Math.cos(pathogen.angle) * step
   let y = pathogen.y + Math.sin(pathogen.angle) * step

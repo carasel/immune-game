@@ -115,8 +115,16 @@ describe('bacteria coming in through a cut', () => {
     const world = testWorld({ waves: [{ at: 1, pathogen: 'blue-bacteria', count: 12 }] })
     const cut = world.entries[0]
 
-    // Straight after the wave lands, before any of them has wandered off.
-    for (let tick = 0; tick < 70; tick++) world.step()
+    // Twelve bacteria in a slit this narrow crowd each other straight out of it,
+    // which is right, but this is about where they land. So no crowding here.
+    const overlap = balance.bacteriaOverlap
+    balance.bacteriaOverlap = 1
+    try {
+      // Straight after the wave lands, before any of them has wandered off.
+      for (let tick = 0; tick < 70; tick++) world.step()
+    } finally {
+      balance.bacteriaOverlap = overlap
+    }
     expect(world.pathogens.length).toBe(12)
 
     for (const bacterium of world.pathogens) {

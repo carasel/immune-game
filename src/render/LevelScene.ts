@@ -914,8 +914,12 @@ export class LevelScene extends Phaser.Scene {
     graphics.clear()
 
     for (const cell of this.world.bodyCells) {
-      const outline = this.outlines.get(cell.id)
-      if (!outline) continue
+      const shape = this.outlines.get(cell.id)
+      if (!shape) continue
+
+      // The outline is kept centred on nothing, and moved to wherever the cell
+      // has been pushed to this frame.
+      const outline = shape.map((point) => ({ x: cell.x + point.x, y: cell.y + point.y }))
 
       if (!cell.alive) {
         // A dead body cell fades away but leaves its outline behind — an empty
@@ -1156,6 +1160,9 @@ function innerCorners(region: EdgeRegion): Phaser.Types.GameObjects.Graphics.Rou
  * A slightly wobbly circle, so 50 body cells don't look like 50 identical
  * circles. Uses the cell's own wobbleSeed, so it is stable across frames and
  * across reloads.
+ *
+ * The points are relative to the cell's centre, because body cells get pushed
+ * about: the shape stays the same, only where it is drawn changes.
  */
 function buildOutline(cell: BodyCell): Vec2[] {
   const segments = 18
@@ -1173,8 +1180,8 @@ function buildOutline(cell: BodyCell): Vec2[] {
       amplitude * 0.36 * Math.sin(angle * 5 - cell.wobbleSeed * 2)
 
     points.push({
-      x: cell.x + Math.cos(angle) * cell.radius * wobble,
-      y: cell.y + Math.sin(angle) * cell.radius * wobble,
+      x: Math.cos(angle) * cell.radius * wobble,
+      y: Math.sin(angle) * cell.radius * wobble,
     })
   }
 

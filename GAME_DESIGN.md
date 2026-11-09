@@ -126,7 +126,8 @@ come from become the threat.
 
 Two decisions collide here:
 
-- Body cells and immune cells **can't overlap** (bacteria can overlap anything).
+- Body cells and immune cells **can't overlap** (bacteria could overlap anything at first;
+  see the springy tissue below, which changed that).
 - The tissue is a blob of ~50 body cells filling one screen.
 
 Taken literally, immune cells would have almost nowhere to walk. The tissue would be a
@@ -139,7 +140,11 @@ themselves. So:
 - Body cells cluster into blobs with **channels of open space between them**. This is the
   walkable area, and it's also what tissue actually looks like in cross-section.
 - Immune cells move freely in the channels.
-- Immune cells **can** squeeze through tissue, but at roughly 40% speed.
+- **Body cells sit on springs.** Immune cells and bacteria **push them aside** to get through,
+  a pushed cell shoves its neighbours along, and they all spring back afterwards. Pushing
+  slows the mover to 75%; pushing only debris, which is light, to 95%.
+- A body cell can be pushed **half a cell width** from where it grew and no further. Past
+  that it stops giving way and the mover **squeezes** past instead, at 40% speed.
 
 Squeezing matters for a second reason: because cells are never hard-blocked, "walk toward
 the nearest pathogen" can be simple steering. **No pathfinding required**, which saves a
@@ -290,7 +295,9 @@ half-eaten one is a smaller target than a whole one.
 
 **Bacteria** — live in the tissue and multiply in place. Kill body cells directly by contact.
 Higher colours get capsules (resist being eaten), toxins (damage at range), biofilms (tougher
-when clustered), flagella (fast). Bacteria can overlap each other and swarm.
+when clustered), flagella (fast). Bacteria push through tissue like immune cells do, and
+crowd each other: they can overlap by **60%** and no more, so a swarm spreads out and you can
+see how big it is.
 
 **Viruses** — cannot do anything alone. A virus enters a body cell, replicates inside, and
 after a delay the cell **bursts**, releasing several new viruses. The player's counterplay is
@@ -502,14 +509,17 @@ in dead body cells, and that is exactly what happens in a real infection.
 
 ## 11. Open questions
 
-- Do bacteria collide with anything at all, or pass through everything?
 - What does the mast cell do mechanically? Must be biologically accurate. Inflaming an
   opening was the obvious fit, but recruits arrive because you order them, so it needs
   another shape (§7).
 - Is there a lymph node / off-screen space where adaptive immunity spins up, or does it all
   happen on the visible tissue?
-- Recruits walk over body cells however much they are slowed. Movement through tissue
-  probably wants a bigger rethink, later.
+- Now that tissue pushes back (springy body cells, 2026-11-09), do narrow vessels bite as
+  bottlenecks yet, or does that still need more?
+- Should `bacteriaOverlap` be different per bacteria type? One number for all of them for now.
+- Springy tissue moved every level (see 2026-11-09): left alone they all last longer, and
+  the scripted chase-nearest player now loses the graze. Playtested and happy for now, but
+  worth watching.
 
 ---
 
@@ -814,3 +824,42 @@ in dead body cells, and that is exactly what happens in a real infection.
   show is already on the lit-up speed button, and the room went to the inflammation button.
 - **The level select sizes its cards to fit.** Four levels at the old width ran off both
   edges of the screen.
+
+*2026-11-09*
+
+- **Springy body cells** (issue #4). Body cells sit on springs: immune cells *and bacteria*
+  push them aside to get through, and they spring back afterwards (about two thirds of the
+  way home in a second). This replaces "bacteria overlap freely", and immune cells no
+  longer crawl over tissue at 40% everywhere. All the numbers are in the *springy tissue*
+  section of `balance.ts`. Claude's first guesses were tuned in play: the push limit came
+  down from a whole cell to half, and the spring back slowed from half a second to one.
+  - **Pushed cells shove their neighbours along**, so the tissue bulges like jelly and body
+    cells still never overlap each other.
+  - **Being pushed doesn't hurt.** Bacteria, granules, NETs and inflammation are already the
+    ways tissue gets hurt.
+  - **Debris is pushable, and lighter**: it gets out of the way quicker. Pushing it slows a
+    mover to 95% against 75% for a living cell, and when a husk meets a living cell, the husk
+    moves. A macrophage now swallows a husk from its edge rather than climbing on top of it,
+    because a husk you push can never be climbed on.
+  - **A cell gives way half a cell width from where it grew, and no further**
+    (`bodyCellMaxPush`, measured in cells). Past that the mover squeezes at the old 40%, so
+    nothing can ever get stuck and there is still no pathfinding.
+- **Bacteria crowd each other**: they overlap by 60% at most (`bacteriaOverlap`). A swarm now
+  looks the size it is. One number for every bacterium for now. Anything stuck in a NET stays
+  where it is and the others get shoved round it.
+- *Measured, same scripted players before and after* (with the tuned numbers; the script
+  is in `scratch/explore.ts`): "left alone" never touches anything, "chase nearest" sends
+  every idle cell after the nearest bacterium and never recruits.
+
+  | | left alone, before | after | chase nearest, before | after |
+  | --- | --- | --- | --- | --- |
+  | cut | lost 119s | lost 154s | won 121s, 44/50 | won 117s, 46/50 |
+  | graze | lost 134s | lost 172s | won 194s, 34/56 | **lost 212s** |
+  | splinter | lost 153s | lost 222s | lost 169s | lost 244s |
+
+  **Left alone, every level lasts longer**, because bacteria have to push through tissue
+  now too. **The graze went the other way for the chase-nearest script**: it used to win
+  and now loses. The script is crude (it never recruits or uses a neutrophil's NET), and the
+  graze felt fine in play, so this is left as it is — but worth watching. Levers if it
+  wants changing: `pushSpeedMultiplier` (bacteria and immune cells share it), the graze's
+  wave sizes, or a per-type overlap.

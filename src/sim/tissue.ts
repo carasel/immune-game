@@ -5,8 +5,15 @@ import { randomRange, type Rng } from './rng'
 
 export interface BodyCell {
   id: number
+  /** Where it is right now. Anything pushing through the tissue moves this. */
   x: number
   y: number
+  /**
+   * Where it grew, and where it springs back to once nothing is pushing it.
+   * See `settleTissue` in crowding.ts.
+   */
+  homeX: number
+  homeY: number
   radius: number
   /** 1 is healthy, 0 is dead. */
   health: number
@@ -166,6 +173,9 @@ export function generateBodyCells(
       id: cells.length + 1,
       x: candidate.x,
       y: candidate.y,
+      // Filled in once the cells have settled, below.
+      homeX: 0,
+      homeY: 0,
       radius,
       health: 1,
       alive: true,
@@ -253,6 +263,8 @@ export function generateBodyCells(
     if (overlaps) continue
 
     cell.id = settled.length + 1
+    cell.homeX = cell.x
+    cell.homeY = cell.y
     settled.push(cell)
   }
 
@@ -266,6 +278,15 @@ export function generateBodyCells(
   }
 
   return settled
+}
+
+/**
+ * How close two body cells' centres can be: their full drawn width, lumps and
+ * all. The generator packs them to exactly this, and pushing keeps to it too.
+ */
+export function bodyCellWidth(): number {
+  const drawnRadius = balance.bodyCellRadius * (1 + balance.bodyCellWobble)
+  return drawnRadius * 2 * Math.max(1, balance.bodyCellSpacingMultiplier)
 }
 
 /**

@@ -92,6 +92,42 @@ export const balance = {
   edgeMargin: 16,
 
   // ---------------------------------------------------------------------------
+  // SPRINGY TISSUE
+  // Body cells sit on springs. Immune cells and bacteria push them aside to get
+  // through, the cells next to them get shoved along too, and they all spring
+  // back to where they grew once nothing is pushing.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * How far a body cell can be pushed from where it grew, in body cells across
+   * (1 = one whole cell width). Past this it stops giving way, and whatever is
+   * pushing has to squeeze past it instead — see squeezeSpeedMultiplier.
+   *
+   * Bigger makes the tissue softer: it parts like jelly to let things through.
+   */
+  bodyCellMaxPush: 0.5,
+
+  /**
+   * How quickly a pushed body cell springs back, in seconds. After this long it
+   * has gone about two thirds of the way home. Smaller is snappier.
+   */
+  bodyCellSpringBackSeconds: 1,
+
+  /**
+   * How fast something moves while it is pushing living body cells out of its
+   * way, as a fraction of its normal speed. Slower than the open channels, so
+   * they are still worth using, but much faster than squeezing.
+   */
+  pushSpeedMultiplier: 0.75,
+
+  /**
+   * The same for debris — the outlines dead cells leave behind. A husk is empty
+   * and light, so it is shoved aside more easily than a living cell, and when
+   * debris and a living cell bump into each other it is the debris that moves.
+   */
+  pushDebrisSpeedMultiplier: 0.95,
+
+  // ---------------------------------------------------------------------------
   // PATHOGENS
   // Each pathogen's own numbers live in content/pathogens.ts. This is the limit
   // that applies to all of them at once.
@@ -99,6 +135,16 @@ export const balance = {
 
   /** Hard cap, so runaway bacteria can't grind the game to a halt. */
   maxPathogens: 400,
+
+  /**
+   * How much two bacteria are allowed to overlap each other. 0 means they can't
+   * overlap at all; 1 means they can sit right on top of each other.
+   *
+   * 0.6 is the starting point: enough that a big infection still fits on the
+   * screen, little enough that a swarm spreads out and you can SEE how many
+   * there are, instead of dozens piling onto one spot and looking like a few.
+   */
+  bacteriaOverlap: 0.6,
 
   /**
    * The chance that a bacterium splitting in two comes out a shade further UP
@@ -129,10 +175,13 @@ export const balance = {
   // ---------------------------------------------------------------------------
 
   /**
-   * How fast an immune cell moves while squeezing between body cells, as a
-   * fraction of its normal speed. This is real: white blood cells crawl through
-   * tissue by deforming themselves, and it's slow going. It also means the open
-   * channels between the blobs are genuinely worth using.
+   * How fast something moves while squeezing past body cells that won't give
+   * way any more (they have been pushed as far as bodyCellMaxPush lets them),
+   * as a fraction of its normal speed. Immune cells and bacteria alike.
+   *
+   * This is real: white blood cells crawl through tissue by deforming
+   * themselves, and it's slow going. It also means nothing ever gets stuck, so
+   * "walk towards the nearest bacterium" still needs no pathfinding.
    */
   squeezeSpeedMultiplier: 0.4,
 
