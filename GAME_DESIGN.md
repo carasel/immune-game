@@ -259,6 +259,7 @@ colour can come as any shape.
 | --- | --- | --- |
 | **rod** | one capsule-shaped body | kill it and it is gone |
 | **cocci** | little round balls stuck together in a clump | one ball comes off at a time |
+| **spiral** | a wavy, wriggling corkscrew | never settles: wanders at random, hurting whatever it passes over |
 
 A cocci of a given colour hurts a body cell at **exactly the same rate** as the rod of that
 colour. Nothing about it is nastier per second. What it is, is *work*: a blue cocci is two
@@ -285,6 +286,23 @@ Three things can take a ball off, and they are deliberately not the same:
 
 Balls are knocked off in the drawing as well as the numbers: the clump visibly shrinks, and a
 half-eaten one is a smaller target than a whole one.
+
+**Spirals** (Lyme disease's *Borrelia*, brought in by a tick, §8 level 4) are a different
+problem again: not *work* like a cocci, but *spread*. *Decided 2026-11-09:*
+
+- **They don't hunt.** A spiral never picks a body cell to go for. It moves at random, and
+  keeps doing that for as long as it is alive, edges and all.
+- **They move in bursts:** a dart, a rest, then the next dart in a new direction, so they
+  zig-zag and are hard to predict.
+- **They hurt only while touching.** A spiral damages a body cell at its colour's normal rate,
+  but only while it is on top of it, so one that darts past does a little damage to lots of
+  cells rather than eating one. The damage gets spread across the tissue.
+- **Faster than a rod on average**, darts and rests together.
+- **Yellow's "faster" means shorter rests**, not quicker darts.
+- **Killed like a rod**: one bite or one granule and it is gone.
+- **Divide like rods**, every 20 seconds.
+- **Drawn as a wavy line whose wave runs along it** while it darts, so it looks like it is
+  corkscrewing.
 
 ### How each family works
 
@@ -408,6 +426,22 @@ wound makes the threat immediate, putting it far from a vessel makes it hard to 
     was easy to win just by fighting, so nobody bothered with the splinter.
   - Vessels on the **left side** and the **bottom**, so the big right side is the far side.
     Tissue spread about evenly everywhere.
+- **Level 4 — the tick bite.** A tick is stuck on the skin, and **spiral** bacteria (§5) come
+  through its one tiny hole. *Decided 2026-11-09:*
+  - **The tick drops off on a timer**, when it is full, the way a real one does. While it is on,
+    spirals come through **in waves**. Once it is gone they stop, so the fight is holding on
+    until then. The immune system can't remove it, because it is outside the body.
+  - **How long it stays on is a placeholder number**, to be tuned by playing.
+  - **Blue, yellow and red** spirals.
+  - **Inflammation is available**, as on the splinter level. The tick can't be pushed out.
+  - **The tick is a simple swelling blob for now:** a dark round body with little legs on the
+    skin edge, swelling as it feeds, then tipping off and gone.
+  - **The bite is at the top middle, with vessels low on both sides and tissue spread evenly**,
+    so the random wandering has room. To be tuned after.
+  - **Starting cells: a placeholder**, to be placed by hand.
+  - *Later:* a second tick level once adaptive immunity exists. A body that has been bitten
+    before learns tick spit (acquired tick resistance), so the bite itches and the tick comes
+    off sooner. It would shorten the tick's timer.
 - Later levels add colours, then viruses, then both at once (**pneumonia in the lungs** —
   bacteria and viruses together), then the parasite levels.
 
@@ -814,3 +848,33 @@ in dead body cells, and that is exactly what happens in a real infection.
   show is already on the lit-up speed button, and the room went to the inflammation button.
 - **The level select sizes its cards to fit.** Four levels at the old width ran off both
   edges of the screen.
+
+*2026-11-09*
+
+- **Spiral bacteria and the tick bite** (§5, §8, issue #3). Spirals wander at random in
+  darts and rests, changing direction each time, and never hunt. They hurt a body cell only
+  while touching it, at their colour's rate. Faster than a rod on average. Yellow means
+  shorter rests. They die whole like a rod and divide every 20s. Level 4: the tick drops off on
+  a timer (placeholder), spirals come in waves (blue, yellow, red) while it is on, inflammation
+  is on, the bite is top middle with vessels low on both sides, and the starting cells are a
+  placeholder to place by hand.
+- **"Spirals don't slow down in tissue" was dropped as the difference.** Bacteria already move
+  at full speed through tissue; only immune cells squeeze. It would have meant slowing rods and
+  cocci on levels 1–3 too.
+- **Spirals are in, on the Petri Dish** (blue at 11s, yellow at 26s, red at 41s, through the
+  middle dropper). First guesses in `content/pathogens.ts`: a dart is 0.4s at 72, a rest is
+  0.6s at blue and 0.4s at yellow and red, so about 29 and 36 on average. A spiral straddling
+  two body cells hurts only the one it is most over, so it never hits harder than its rod.
+  *Measured:* because every dart picks a brand new direction, a spiral is a random walk. In
+  20 seconds a blue one covers about 580px of path but ends up only about 200px from where it
+  started, hurting a handful of cells and killing none. Worth knowing when tuning: longer darts
+  spread them further, and more darts in the same time do not.
+- **Spiral tuning, decided but not built yet** (paused here, 2026-11-09). Watching them on the
+  Petri Dish, a blue spiral spent its first 28 seconds drifting in open space under the
+  dropper without reaching tissue. So:
+  - **Each new dart turns at most 90° from the last**, instead of any direction. Measured with
+    today's darts: about 235px from the start after 20 seconds, against 115px now.
+  - **Darts stay 0.4s at 72.**
+  - **They should try to go through as much tissue as possible.** Still open: how hard they
+    try (best of a few random tries, always the best direction, or only sometimes), whether
+    dead husks count as tissue, and what they do out in open space with no tissue in reach.

@@ -47,11 +47,17 @@ export type PathogenColour = (typeof pathogenColours)[number]
  *          comes off at a time, so a clump has to be taken apart piece by
  *          piece while the rest of it carries on eating your tissue.
  *
- * Both are real: rods are bacilli — E. coli, salmonella — and cocci are the
+ *   spiral a wavy corkscrew. It never hunts: it darts about at random, resting
+ *          between darts, and hurts whatever body cell it happens to be on
+ *          top of. Kill it and it is gone, like a rod. The trouble is that
+ *          its damage ends up spread all over the tissue.
+ *
+ * All three are real: rods are bacilli — E. coli, salmonella — cocci are the
  * round ones that grow stuck together in clumps and chains, like staph and
- * strep.
+ * strep, and spirals are spirochetes, like Borrelia, the one ticks carry that
+ * causes Lyme disease.
  */
-export type PathogenShape = 'rod' | 'cocci'
+export type PathogenShape = 'rod' | 'cocci' | 'spiral'
 
 /** Everything both shapes have. */
 interface PathogenBase {
@@ -130,7 +136,42 @@ export interface CocciDef extends PathogenBase {
   balls: number
 }
 
-export type PathogenDef = RodDef | CocciDef
+/**
+ * A spiral: a corkscrew that darts, rests, and darts off somewhere new.
+ *
+ * Its `speed` is how fast it goes DURING a dart. It sits still for the whole
+ * rest, so on average it is a good deal slower than that — see
+ * `spiralAverageSpeed`.
+ *
+ * Its `visionRange` is 0, because it never looks for anything to eat.
+ */
+export interface SpiralDef extends PathogenBase {
+  shape: 'spiral'
+  /** How long it is from end to end... */
+  length: number
+  /** ...how far the wave swings either side of its middle... */
+  waveHeight: number
+  /** ...how many full waves fit along it... */
+  waves: number
+  /** ...and how thick the line it is drawn with is. */
+  thickness: number
+  /** How long each dart lasts, in seconds. */
+  dartSeconds: number
+  /** How long it sits still between darts, in seconds. */
+  restSeconds: number
+  /** A spiral is one single body, so this is always 1. */
+  balls: 1
+}
+
+export type PathogenDef = RodDef | CocciDef | SpiralDef
+
+/**
+ * How fast a spiral really gets about, with its rests counted in: it covers
+ * `speed` for `dartSeconds`, then nothing for `restSeconds`.
+ */
+export function spiralAverageSpeed(def: SpiralDef): number {
+  return (def.speed * def.dartSeconds) / (def.dartSeconds + def.restSeconds)
+}
 
 /**
  * How many balls a cocci of this colour is made of: two at blue, and one more
@@ -447,9 +488,95 @@ export const purpleCocci: CocciDef = {
 }
 
 /**
- * Every pathogen in the game: the whole colour ladder, in both shapes. Levels
- * only ever send blue, so everything past it is something an infection becomes
- * when you let it run rather than something a level hands you.
+ * SPIRALS
+ * -------
+ * The wanderers. A spiral never goes for anything: it darts off in a random
+ * direction, stops dead for a moment, then darts off in another, for as long as
+ * it is alive. Whatever body cell it is on top of gets hurt, at exactly the
+ * rate a rod of the same colour would eat it, but only while it is there. So a
+ * spiral does a little damage to lots of cells instead of finishing one off.
+ *
+ * Kill it like a rod: one bite or one granule. It divides like a rod too, every
+ * 20 seconds.
+ *
+ * FIRST GUESSES, all of them — darts, rests and speeds are for tuning by
+ * playing. The only rules so far are that on average a spiral is faster than
+ * the rod of its colour, and that a yellow's "faster" is shorter rests rather
+ * than quicker darts.
+ *
+ * Only blue, yellow and red exist so far. What a green spiral does — the
+ * colour that runs away, on a shape that never aims anywhere — isn't decided,
+ * so a red spiral that drifts up simply stays red.
+ */
+export const blueSpiral: SpiralDef = {
+  id: 'blue-spiral',
+  name: 'Blue spiral',
+  family: 'bacteria',
+  colour: 'blue',
+  shape: 'spiral',
+
+  length: 30,
+  waveHeight: 4,
+  waves: 2.5,
+  thickness: 5,
+  balls: 1,
+
+  radius: 9,
+  /** The same as a blue rod's: it dies whole, the same way. */
+  health: 3,
+  /**
+   * During a dart. With 0.4s darting and 0.6s resting that comes out at about
+   * 29 on average, against a blue rod's 24.
+   */
+  speed: 72,
+  dartSeconds: 0.4,
+  restSeconds: 0.6,
+  visionRange: 0,
+  /** Exactly a blue rod's, but only ever while it is on top of a cell. */
+  damagePerSecond: 0.09,
+  divideEverySeconds: 20,
+  /** Spirals don't wander on this timer. It only staggers when the first dart starts. */
+  wanderChangeSeconds: 1,
+}
+
+/**
+ * Tier 2: the same darts, shorter rests. 0.4s darting and 0.4s resting comes
+ * out at 36 on average, against a yellow rod's 30.
+ */
+export const yellowSpiral: SpiralDef = {
+  ...blueSpiral,
+  id: 'yellow-spiral',
+  name: 'Yellow spiral',
+  colour: 'yellow',
+
+  // A little bigger, so a nastier one reads as nastier at a glance.
+  length: 32,
+  waveHeight: 4.5,
+  thickness: 5.5,
+
+  restSeconds: 0.4,
+}
+
+/** Tier 3: as quick as yellow, and it hurts a body cell half again as fast. */
+export const redSpiral: SpiralDef = {
+  ...yellowSpiral,
+  id: 'red-spiral',
+  name: 'Red spiral',
+  colour: 'red',
+
+  length: 34,
+  waveHeight: 5,
+  thickness: 6,
+
+  /** Exactly a red rod's. */
+  damagePerSecond: 0.14,
+}
+
+/**
+ * Every pathogen in the game: the whole colour ladder for rods and cocci, and
+ * the first three colours of spiral. Most levels only send blue, yellow and
+ * red, so everything past them is something an infection becomes when you let
+ * it run rather than something a level hands you.
  */
 export const pathogens: PathogenDef[] = [
   blueBacteria,
@@ -464,6 +591,9 @@ export const pathogens: PathogenDef[] = [
   greenCocci,
   orangeCocci,
   purpleCocci,
+  blueSpiral,
+  yellowSpiral,
+  redSpiral,
 ]
 
 const byId = new Map(pathogens.map((def) => [def.id, def]))

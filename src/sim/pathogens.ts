@@ -1,4 +1,4 @@
-import { cocciRadius, type PathogenDef } from '../content/pathogens'
+import { cocciRadius, type PathogenDef, type SpiralDef } from '../content/pathogens'
 import { clamp, distance, type Size, type Vec2 } from './geometry'
 import type { ImmuneCell } from './immuneCells'
 import { isTrapped, type Net } from './nets'
@@ -26,8 +26,13 @@ export interface Pathogen {
   alive: boolean
   /** Seconds until it splits in two. */
   divideIn: number
-  /** Seconds until it picks a new direction to wander in. */
+  /**
+   * Seconds until it picks a new direction to wander in. For a spiral, seconds
+   * until the dart or rest it is in now ends.
+   */
   wanderIn: number
+  /** Spirals only: sitting still between darts. Anything else leaves it out. */
+  resting?: boolean
 }
 
 export interface PathogenContext {
@@ -117,6 +122,11 @@ export function updatePathogen(
   // can do is sit there being poisoned, which is exactly what a NET is for.
   if (isTrapped(pathogen, ctx.nets)) return
 
+  if (def.shape === 'spiral') {
+    updateSpiral(pathogen, def, ctx)
+    return
+  }
+
   const target = nearestBodyCellInRange(ctx.bodyCells, pathogen, def.visionRange)
   const biting =
     target !== undefined &&
@@ -140,15 +150,7 @@ export function updatePathogen(
 
     if (biting) {
       // Close enough to eat into it. Stop moving and do damage.
-      target.health -= def.damagePerSecond * ctx.dt
-
-      if (target.health <= 0) {
-        target.health = 0
-        target.alive = false
-        // It leaves its outline behind for a macrophage to clear away.
-        target.debris = true
-        ctx.onBodyCellDied(target)
-      }
+      hurtBodyCell(target, def, ctx)
       return
     }
 
@@ -163,6 +165,73 @@ export function updatePathogen(
   }
 
   swim(pathogen, def, ctx)
+}
+
+/**
+ * One tick of a spiral. It never looks for anything: it darts in a random
+ * direction, sits still for a rest, then darts off in a new one, and hurts
+ * whichever body cell it is on top of, darting or resting.
+ *
+ * Only ever one cell at a time, the one it is most squarely over, so a spiral
+ * straddling two cells hits exactly as hard as the rod of its colour and not
+ * twice as hard.
+ */
+function updateSpiral(
+  pathogen: Pathogen,
+  def: SpiralDef,
+  ctx: PathogenContext,
+): void {
+  pathogen.wanderIn -= ctx.dt
+
+  if (pathogen.wanderIn <= 0) {
+    if (pathogen.resting) {
+      pathogen.resting = false
+      pathogen.angle = ctx.rng() * Math.PI * 2
+      pathogen.wanderIn += def.dartSeconds
+    } else {
+      pathogen.resting = true
+      pathogen.wanderIn += def.restSeconds
+    }
+  }
+
+  const under = bodyCellUnder(ctx.bodyCells, pathogen, def.radius)
+  if (under) hurtBodyCell(under, def, ctx)
+
+  if (!pathogen.resting) swim(pathogen, def, ctx)
+}
+
+/** Eat into a body cell for one tick, and see to it if that finishes it off. */
+function hurtBodyCell(cell: BodyCell, def: PathogenDef, ctx: PathogenContext): void {
+  cell.health -= def.damagePerSecond * ctx.dt
+  if (cell.health > 0) return
+
+  cell.health = 0
+  cell.alive = false
+  // It leaves its outline behind for a macrophage to clear away.
+  cell.debris = true
+  ctx.onBodyCellDied(cell)
+}
+
+/** The living body cell this is touching whose middle is nearest its own, if any. */
+function bodyCellUnder(
+  bodyCells: BodyCell[],
+  pathogen: Pathogen,
+  radius: number,
+): BodyCell | undefined {
+  let best: BodyCell | undefined
+  let bestDistance = Infinity
+
+  for (const cell of bodyCells) {
+    if (!cell.alive) continue
+
+    const away = distance(pathogen.x, pathogen.y, cell.x, cell.y)
+    if (away <= cell.radius + radius && away < bestDistance) {
+      bestDistance = away
+      best = cell
+    }
+  }
+
+  return best
 }
 
 /** Move forwards, bouncing off the edges of the tissue. */

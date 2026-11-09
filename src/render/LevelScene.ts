@@ -24,7 +24,7 @@ import {
   splinterPalette,
   textColour,
 } from './palette'
-import { cellOutline, insideCell, rodTail, ROD_TAIL_ROOT, rodTailShape } from './shapes'
+import { cellOutline, insideCell, rodTail, ROD_TAIL_ROOT, rodTailShape, spiralBody } from './shapes'
 
 const MS_PER_TICK = 1000 / TICKS_PER_SECOND
 
@@ -60,6 +60,12 @@ const TAIL_WAVES_PER_SECOND = 2.6
  * all beating in time with each other, which looks like a bug.
  */
 const TAIL_STAGGER = 1.7
+
+/**
+ * How many full waves run along a spiral's body in one level second while it
+ * darts. It holds still while it rests, so the wriggle is the dart.
+ */
+const SPIRAL_WAVES_PER_SECOND = 4
 
 /** How long the splinter takes to slide out once the pus pushes it, in level seconds. */
 const SPLINTER_EXIT_SECONDS = 1.6
@@ -99,6 +105,16 @@ export class LevelScene extends Phaser.Scene {
    */
   private levelSeconds = 0
 
+  /**
+   * How far along each spiral's wave has run, by pathogen id. Held here rather
+   * than worked out from the clock because it only moves while the spiral is
+   * darting, so it has to remember where it stopped.
+   */
+  private spiralPhases = new Map<number, number>()
+
+  /** `levelSeconds` when the bacteria were last drawn, to know how far to wind the spirals. */
+  private pathogensDrawnAt = 0
+
   private levelId = levels[0].id
 
   /** Shown once the level is decided. Built lazily, since most levels don't end. */
@@ -134,6 +150,8 @@ export class LevelScene extends Phaser.Scene {
     this.outlines.clear()
     this.leftoverMs = 0
     this.levelSeconds = 0
+    this.spiralPhases.clear()
+    this.pathogensDrawnAt = 0
     this.restartArmedUntil = 0
     this.forgetLastClick()
 
@@ -955,13 +973,23 @@ export class LevelScene extends Phaser.Scene {
    *
    * The tail is decoration only. Nothing in the simulation knows about it, so a
    * tail can't be bitten and doesn't make a bacterium easier to catch.
+   *
+   * Spirals are a thick wavy line, outlined by drawing it twice: wide in the
+   * edge colour, then narrower in the fill on top. The wave runs along them only
+   * while they dart.
    */
   private drawPathogens(): void {
     const graphics = this.pathogenGraphics
     graphics.clear()
 
+    const elapsed = this.levelSeconds - this.pathogensDrawnAt
+    this.pathogensDrawnAt = this.levelSeconds
+
     for (const pathogen of this.world.pathogens) {
-      if (!pathogen.alive) continue
+      if (!pathogen.alive) {
+        this.spiralPhases.delete(pathogen.id)
+        continue
+      }
 
       const def = findPathogen(pathogen.defId)
       if (!def) continue
@@ -972,7 +1000,26 @@ export class LevelScene extends Phaser.Scene {
       graphics.translateCanvas(pathogen.x, pathogen.y)
       graphics.rotateCanvas(pathogen.angle)
 
-      if (def.shape === 'cocci') {
+      if (def.shape === 'spiral') {
+        // Started off staggered, for the same reason the tails are.
+        let phase = this.spiralPhases.get(pathogen.id) ?? pathogen.id * TAIL_STAGGER
+        if (!pathogen.resting) phase += elapsed * SPIRAL_WAVES_PER_SECOND * Math.PI * 2
+        this.spiralPhases.set(pathogen.id, phase)
+
+        const body = spiralBody(def, phase)
+
+        graphics.lineStyle(def.thickness + 4, colour.edge, 1)
+        graphics.strokePoints(body)
+        graphics.fillStyle(colour.edge, 1)
+        graphics.fillCircle(body[0].x, body[0].y, (def.thickness + 4) / 2)
+        graphics.fillCircle(body[body.length - 1].x, body[body.length - 1].y, (def.thickness + 4) / 2)
+
+        graphics.lineStyle(def.thickness, colour.fill, 1)
+        graphics.strokePoints(body)
+        graphics.fillStyle(colour.fill, 1)
+        graphics.fillCircle(body[0].x, body[0].y, def.thickness / 2)
+        graphics.fillCircle(body[body.length - 1].x, body[body.length - 1].y, def.thickness / 2)
+      } else if (def.shape === 'cocci') {
         const balls = ballOffsets(pathogen.balls, def.ballRadius)
 
         // Every ball is filled before any of them is outlined, so the outlines

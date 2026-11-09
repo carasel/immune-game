@@ -134,3 +134,42 @@ export function rodTail(root: number, shape: TailShape, phase: number, segments 
 
   return points
 }
+
+/** What a spiral bacterium's wavy body is made of. */
+export interface SpiralShape {
+  /** End to end. */
+  length: number
+  /** How far the wave swings either side of the middle. */
+  waveHeight: number
+  /** How many full waves fit along it. */
+  waves: number
+}
+
+/**
+ * A spiral bacterium's body: a wavy line, centred on its own middle and lying
+ * along +x, the way a rod lies, so whatever draws it can turn the whole thing
+ * to face the way it is going.
+ *
+ * Unlike a rod's tail the wave is the same height all the way along, because
+ * the whole body is the corkscrew, not just the end of it. `phase` slides the
+ * wave along: wind it up while the spiral darts and it looks like it is
+ * screwing itself forwards.
+ *
+ * Lives here so a spiral drawn anywhere else, a HUD icon or a level card, is
+ * drawn by the same code as the ones out in the tissue.
+ */
+export function spiralBody(shape: SpiralShape, phase: number, segments = 24): Vec2[] {
+  const points: Vec2[] = []
+
+  for (let i = 0; i <= segments; i++) {
+    // 0 at the back end, 1 at the front.
+    const along = i / segments
+
+    points.push({
+      x: shape.length * (along - 0.5),
+      y: shape.waveHeight * Math.sin(along * shape.waves * Math.PI * 2 - phase),
+    })
+  }
+
+  return points
+}
