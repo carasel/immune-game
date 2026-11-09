@@ -3,6 +3,7 @@ import { findImmuneCell, type ImmuneCellDef } from '../content/cells'
 import { inflammation } from '../content/inflammation'
 import { findPathogen } from '../content/pathogens'
 import { clamp, distance, type Size, type Vec2 } from './geometry'
+import { tissueSpeedFactor, TOUCHING_SLACK } from './crowding'
 import { loseBall, pathogenRadius, type Pathogen } from './pathogens'
 import type { Rng } from './rng'
 import type { BodyCell } from './tissue'
@@ -13,12 +14,6 @@ import type { BodyCell } from './tissue'
  * the cell rather than sticking to its nose.
  */
 const PATHOGEN_REACH = 0.8
-
-/**
- * The same idea for a dead body cell. Smaller, because a body cell is bigger
- * than the macrophage — it has to crawl on top of the husk to clear it.
- */
-const DEBRIS_REACH = 0.5
 
 /**
  * How far past touching a macrophage can reach pus from. Pus sits on the
@@ -243,7 +238,9 @@ export function updateImmuneCell(
     if (husk) {
       cell.angle = Math.atan2(husk.y - cell.y, husk.x - cell.x)
 
-      const reach = (def.radius + husk.radius) * DEBRIS_REACH
+      // Touching is enough. A husk is pushed aside like any other body cell, so
+      // a macrophage could never get on top of one — it swallows it from the edge.
+      const reach = def.radius + husk.radius + TOUCHING_SLACK
 
       if (distance(cell.x, cell.y, husk.x, husk.y) <= reach) {
         // Cleared. The outline goes now, so no other macrophage comes for it.
@@ -374,7 +371,9 @@ export function killImmuneCell(cell: ImmuneCell, elapsedSeconds: number): void {
 /**
  * Crawl forwards, bouncing off the edges of the tissue.
  *
- * Moving through a body cell is allowed but slow — squeezing through tissue is
+ * Body cells are pushed aside rather than walked over (see crowding.ts), which
+ * slows a cell down a little. Where the tissue has been pushed as far as it
+ * will go, the cell squeezes past instead, slowly — squeezing through tissue is
  * what white blood cells really do, and it means nothing ever gets hard-blocked,
  * so "walk towards the nearest bacterium" needs no pathfinding at all.
  */
@@ -385,10 +384,10 @@ function crawl(cell: ImmuneCell, def: ImmuneCellDef, ctx: ImmuneCellContext): vo
   let x = cell.x + Math.cos(cell.angle) * step
   let y = cell.y + Math.sin(cell.angle) * step
 
-  if (touchesLivingBodyCell(x, y, def.radius, ctx.bodyCells)) {
-    const squeezed = step * balance.squeezeSpeedMultiplier
-    x = cell.x + Math.cos(cell.angle) * squeezed
-    y = cell.y + Math.sin(cell.angle) * squeezed
+  const tissue = tissueSpeedFactor(ctx.bodyCells, cell, { x, y }, def.radius)
+  if (tissue < 1) {
+    x = cell.x + Math.cos(cell.angle) * step * tissue
+    y = cell.y + Math.sin(cell.angle) * step * tissue
   }
 
   if (x < edge || x > ctx.bounds.width - edge) {
@@ -456,21 +455,6 @@ function nudge(
 ): void {
   cell.x = clamp(cell.x + dx, def.radius, bounds.width - def.radius)
   cell.y = clamp(cell.y + dy, def.radius, bounds.height - def.radius)
-}
-
-/** Is any living body cell in the way at (x, y)? Then we are squeezing. */
-function touchesLivingBodyCell(
-  x: number,
-  y: number,
-  radius: number,
-  bodyCells: BodyCell[],
-): boolean {
-  for (const bodyCell of bodyCells) {
-    if (!bodyCell.alive) continue
-    if (distance(x, y, bodyCell.x, bodyCell.y) < radius + bodyCell.radius) return true
-  }
-
-  return false
 }
 
 function nearestPathogenInRange(

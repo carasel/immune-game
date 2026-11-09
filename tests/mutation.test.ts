@@ -111,6 +111,13 @@ describe('which colours something can drift to', () => {
 })
 
 describe('mutating as they divide', () => {
+  /**
+   * Three simulated minutes that end with 400 bacteria crowding each other and
+   * pushing the tissue about. Quick on its own, but it can run past the usual
+   * five seconds while every other test file is running alongside it.
+   */
+  const BREEDING_TIMEOUT = 20_000
+
   /** Runs a level of nothing but dividing bacteria and counts the colours. */
   function breed(seconds: number): Map<string, number> {
     const world = worldWith([])
@@ -141,7 +148,7 @@ describe('mutating as they divide', () => {
 
     expect(counts.get('blue-bacteria')).toBeGreaterThan(0)
     expect(counts.get('yellow-bacteria')).toBeGreaterThan(0)
-  })
+  }, BREEDING_TIMEOUT)
 
   /**
    * One generation, from a lot of parents at once, all of one colour.
@@ -262,7 +269,7 @@ describe('mutating as they divide', () => {
       // Full health for a yellow, which is what it is now — not a blue's.
       expect(pathogen.health).toBeLessThanOrEqual(yellowBacteria.health)
     }
-  })
+  }, BREEDING_TIMEOUT)
 
   it('is the only way a new colour ever turns up', () => {
     // The level's waves are blue and nothing else.
