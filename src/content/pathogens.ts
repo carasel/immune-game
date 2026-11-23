@@ -112,6 +112,17 @@ interface PathogenBase {
    * you take it apart ball by ball is the more frightening thing.
    */
   fleeWhileEating?: boolean
+
+  // --- getting through tissue ---
+  /**
+   * True and it goes through tissue at full speed. It still shoves the body
+   * cells aside, but they never slow it down. Leave it out and pushing through
+   * tissue slows it the way it slows everything else (see `pushSpeedMultiplier`
+   * and `squeezeSpeedMultiplier` in balance.ts).
+   *
+   * Spirals have it: a real spirochete corkscrews through tissue.
+   */
+  fullSpeedThroughTissue?: boolean
 }
 
 /** A rod: one rounded rectangle, swimming along its long axis. */
@@ -143,7 +154,8 @@ export interface CocciDef extends PathogenBase {
  * rest, so on average it is a good deal slower than that — see
  * `spiralAverageSpeed`.
  *
- * Its `visionRange` is 0, because it never looks for anything to eat.
+ * Its `visionRange` is 0, because it never picks one body cell to go for. It
+ * does steer each dart, though: see `dartTries` and `openSpaceWobbleDegrees`.
  */
 export interface SpiralDef extends PathogenBase {
   shape: 'spiral'
@@ -159,6 +171,24 @@ export interface SpiralDef extends PathogenBase {
   dartSeconds: number
   /** How long it sits still between darts, in seconds. */
   restSeconds: number
+  /**
+   * The furthest a new dart can turn from the last one, in degrees. 180 would
+   * let it go any way at all, and then its darts cancel out and it hardly gets
+   * anywhere.
+   */
+  maxTurnDegrees: number
+  /**
+   * How many random directions it tries before each dart. It takes whichever
+   * one goes through the most living body cells. 1 is no steering at all;
+   * more makes it greedier for tissue and less random-looking.
+   */
+  dartTries: number
+  /**
+   * Out in open space, when none of its tries goes through any living tissue,
+   * it heads for the nearest living body cell instead, give or take this many
+   * degrees either way. 0 would make a beeline.
+   */
+  openSpaceWobbleDegrees: number
   /** A spiral is one single body, so this is always 1. */
   balls: 1
 }
@@ -490,9 +520,12 @@ export const purpleCocci: CocciDef = {
 /**
  * SPIRALS
  * -------
- * The wanderers. A spiral never goes for anything: it darts off in a random
- * direction, stops dead for a moment, then darts off in another, for as long as
- * it is alive. Whatever body cell it is on top of gets hurt, at exactly the
+ * The wanderers. A spiral never picks one body cell to go for: it darts,
+ * stops dead for a moment, then darts off in another direction, for as long as
+ * it is alive. Each dart turns no more than 90 degrees from the last, and out
+ * of a few random tries it takes the one through the most living tissue. Out
+ * in open space it heads roughly for the nearest living tissue instead.
+ * Whatever body cell it is on top of gets hurt, at exactly the
  * rate a rod of the same colour would eat it, but only while it is there. So a
  * spiral does a little damage to lots of cells instead of finishing one off.
  *
@@ -531,6 +564,11 @@ export const blueSpiral: SpiralDef = {
   speed: 72,
   dartSeconds: 0.4,
   restSeconds: 0.6,
+  maxTurnDegrees: 90,
+  dartTries: 4,
+  openSpaceWobbleDegrees: 45,
+  /** It corkscrews: tissue never slows it down. */
+  fullSpeedThroughTissue: true,
   visionRange: 0,
   /** Exactly a blue rod's, but only ever while it is on top of a cell. */
   damagePerSecond: 0.09,

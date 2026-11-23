@@ -5,7 +5,7 @@ import { clamp, distance, type Size, type Vec2 } from './geometry'
 import type { ImmuneCell } from './immuneCells'
 import { isTrapped, type Net } from './nets'
 import type { Rng } from './rng'
-import { stickyTarget } from './targeting'
+import { nearestInRange, stickyTarget } from './targeting'
 import type { BodyCell } from './tissue'
 
 export interface Pathogen {
@@ -200,9 +200,10 @@ export function updatePathogen(
 }
 
 /**
- * One tick of a spiral. It never looks for anything: it darts in a random
- * direction, sits still for a rest, then darts off in a new one, and hurts
- * whichever body cell it is touching, darting or resting.
+ * One tick of a spiral. It darts, sits still for a rest, then darts off in a
+ * new direction, and hurts whichever body cell it is touching, darting or
+ * resting. It never picks one body cell to go for. See `nextDartAngle` for how
+ * it chooses where to dart.
  *
  * Only ever one cell at a time, the one it is most squarely against, so a
  * spiral wedged between two cells hits exactly as hard as the rod of its colour
@@ -218,7 +219,7 @@ function updateSpiral(
   if (pathogen.wanderIn <= 0) {
     if (pathogen.resting) {
       pathogen.resting = false
-      pathogen.angle = ctx.rng() * Math.PI * 2
+      pathogen.angle = nextDartAngle(pathogen, def, ctx)
       pathogen.wanderIn += def.dartSeconds
     } else {
       pathogen.resting = true
@@ -230,6 +231,79 @@ function updateSpiral(
   if (under) hurtBodyCell(under, def, ctx)
 
   if (!pathogen.resting) swim(pathogen, def, ctx)
+}
+
+/**
+ * Which way a spiral's next dart goes.
+ *
+ * It tries `dartTries` random directions, none more than `maxTurnDegrees` off
+ * the way it was already going, and takes the one whose dart would cross the
+ * most living body cells. So it is still random, but it favours tissue.
+ *
+ * If none of them crosses any living tissue, it is out in open space, and it
+ * heads for the nearest living body cell instead, give or take
+ * `openSpaceWobbleDegrees`. That is still held to `maxTurnDegrees`, so a spiral
+ * with tissue behind it takes a couple of darts to come round.
+ */
+function nextDartAngle(pathogen: Pathogen, def: SpiralDef, ctx: PathogenContext): number {
+  const maxTurn = (def.maxTurnDegrees * Math.PI) / 180
+  const reach = def.speed * def.dartSeconds
+
+  let best = pathogen.angle
+  let bestCrossed = 0
+
+  for (let i = 0; i < def.dartTries; i++) {
+    const angle = pathogen.angle + (ctx.rng() * 2 - 1) * maxTurn
+    const crossed = cellsAlong(ctx.bodyCells, pathogen, angle, reach, def.radius)
+
+    // The first try always counts, so with no tissue anywhere it is at least
+    // still a random direction until the open-space rule below takes over.
+    if (i === 0 || crossed > bestCrossed) {
+      best = angle
+      bestCrossed = crossed
+    }
+  }
+
+  if (bestCrossed > 0) return best
+
+  const nearest = nearestInRange(pathogen, Infinity, ctx.bodyCells, isAlive)
+  if (!nearest) return best
+
+  const wobble = (def.openSpaceWobbleDegrees * Math.PI) / 180
+  const towards =
+    Math.atan2(nearest.y - pathogen.y, nearest.x - pathogen.x) + (ctx.rng() * 2 - 1) * wobble
+
+  return pathogen.angle + clamp(angleBetween(pathogen.angle, towards), -maxTurn, maxTurn)
+}
+
+/** How many living body cells a dart from here, this way, this far, would pass over. */
+function cellsAlong(
+  bodyCells: BodyCell[],
+  from: Vec2,
+  angle: number,
+  reach: number,
+  radius: number,
+): number {
+  const dx = Math.cos(angle)
+  const dy = Math.sin(angle)
+  let crossed = 0
+
+  for (const cell of bodyCells) {
+    if (!cell.alive) continue
+
+    // The nearest point on the dart's path to the cell's middle.
+    const along = clamp((cell.x - from.x) * dx + (cell.y - from.y) * dy, 0, reach)
+    const gap = distance(from.x + dx * along, from.y + dy * along, cell.x, cell.y)
+
+    if (gap <= cell.radius + radius) crossed++
+  }
+
+  return crossed
+}
+
+/** How far to turn from `from` to face `to`, the short way round, in radians. */
+function angleBetween(from: number, to: number): number {
+  return Math.atan2(Math.sin(to - from), Math.cos(to - from))
 }
 
 /** Eat into a body cell for one tick, and see to it if that finishes it off. */
@@ -279,7 +353,9 @@ function swim(pathogen: Pathogen, def: PathogenDef, ctx: PathogenContext): void 
     x: pathogen.x + Math.cos(pathogen.angle) * step,
     y: pathogen.y + Math.sin(pathogen.angle) * step,
   }
-  step *= tissueSpeedFactor(ctx.bodyCells, pathogen, ahead, edge)
+  if (!def.fullSpeedThroughTissue) {
+    step *= tissueSpeedFactor(ctx.bodyCells, pathogen, ahead, edge)
+  }
 
   let x = pathogen.x + Math.cos(pathogen.angle) * step
   let y = pathogen.y + Math.sin(pathogen.angle) * step

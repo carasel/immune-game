@@ -299,10 +299,16 @@ half-eaten one is a smaller target than a whole one.
 **Spirals** (Lyme disease's *Borrelia*, brought in by a tick, §8 level 4) are a different
 problem again: not *work* like a cocci, but *spread*. *Decided 2026-11-09:*
 
-- **They don't hunt.** A spiral never picks a body cell to go for. It moves at random, and
-  keeps doing that for as long as it is alive, edges and all.
+- **They don't hunt.** A spiral never picks a body cell to go for, and keeps wandering for as
+  long as it is alive.
 - **They move in bursts:** a dart, a rest, then the next dart in a new direction, so they
   zig-zag and are hard to predict.
+- **But they favour tissue** (*decided 2026-11-23*). Each dart turns at most 90° from the
+  last. A spiral tries a few random directions (4) and darts the way that crosses the most
+  **living** body cells; dead husks don't count. Out in open space, with no living tissue on
+  any of its tries, it heads for the nearest living cell, give or take 45°, still in bursts.
+- **Tissue never slows them** (*decided 2026-11-23*). Every other bacterium slows down pushing
+  through tissue. A spiral corkscrews through at full speed, still shoving cells aside.
 - **They hurt only while touching.** A spiral damages a body cell at its colour's normal rate,
   but only while it is on top of it, so one that darts past does a little damage to lots of
   cells rather than eating one. The damage gets spread across the tissue.
@@ -924,12 +930,31 @@ in dead body cells, and that is exactly what happens in a real infection.
   20 seconds a blue one covers about 580px of path but ends up only about 200px from where it
   started, hurting a handful of cells and killing none. Worth knowing when tuning: longer darts
   spread them further, and more darts in the same time do not.
-- **Spiral tuning, decided but not built yet** (paused here, 2026-11-09). Watching them on the
-  Petri Dish, a blue spiral spent its first 28 seconds drifting in open space under the
-  dropper without reaching tissue. So:
+- **Spiral tuning.** Watching them on the Petri Dish, a blue spiral spent its first 28 seconds
+  drifting in open space under the dropper without reaching tissue. So:
   - **Each new dart turns at most 90° from the last**, instead of any direction. Measured with
-    today's darts: about 235px from the start after 20 seconds, against 115px now.
+    those darts and no steering: about 235px from the start after 20 seconds, against 115px.
   - **Darts stay 0.4s at 72.**
-  - **They should try to go through as much tissue as possible.** Still open: how hard they
-    try (best of a few random tries, always the best direction, or only sometimes), whether
-    dead husks count as tissue, and what they do out in open space with no tissue in reach.
+
+*2026-11-23*
+
+- **Spirals go through as much tissue as they can.** Best of 4 random tries within 90°,
+  counting living cells only; out in open space, head for the nearest living cell give or
+  take 45°. All three numbers are in `content/pathogens.ts` (`maxTurnDegrees`, `dartTries`,
+  `openSpaceWobbleDegrees`).
+  *Measured on The Cut, ten 30-second runs:* started in tissue, a blue spiral is on tissue
+  about 80% of the time and hurts about 8 cells, killing none. Started in the top-left corner,
+  it reaches tissue in about 5 seconds.
+- **Spirals on springy tissue** (after rebasing onto main's springy tissue, issue #4). Bacteria
+  no longer overlap body cells: they push them aside. So a spiral now hurts the cell it is
+  *touching* (with the same slack a rod's bite gets), rather than one it is on top of. It is
+  also slowed pushing through tissue like every other bacterium, which brings back the
+  issue's first idea, "spirals don't slow down in tissue", dropped on 2026-11-09 only because
+  nothing slowed down then.
+- **Spirals corkscrew through tissue at full speed.** *Decided 2026-11-23.* They still shove
+  body cells aside, but pushing and squeezing never slow them down; every other bacterium is
+  still slowed. It is a per-pathogen setting, `fullSpeedThroughTissue` in
+  `content/pathogens.ts`. Inflammation still slows them.
+  *Measured, ten 30-second runs on The Cut:* through tissue a blue spiral averages 28.8, the
+  same as in open space (slowed like a rod it was 23.6). On tissue about 75% of the time, about
+  8 cells hurt, none killed. From the corner, still about 5 seconds to reach tissue.

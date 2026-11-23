@@ -10,6 +10,7 @@ import {
   yellowSpiral,
 } from '../src/content/pathogens'
 import { spiralBody } from '../src/render/shapes'
+import { TOUCHING_SLACK } from '../src/sim/crowding'
 import type { Pathogen } from '../src/sim/pathogens'
 import type { BodyCell } from '../src/sim/tissue'
 import { placeBacterium, run, runUntil, stripTissue, worldWith } from './helpers'
@@ -128,6 +129,87 @@ describe('how a spiral moves', () => {
     // About 20 darts in 20 seconds. All of them in different directions, give
     // or take a bounce off the edge landing on the same one by chance.
     expect(headings.size).toBeGreaterThan(15)
+  })
+
+  it('never turns more than 90 degrees from one dart to the next', () => {
+    const world = worldWith([])
+    const spiral = placeBacterium(world, 500, 350, 'blue-spiral')
+    spiral.wanderIn = 0
+
+    const limit = (blueSpiral.maxTurnDegrees * Math.PI) / 180
+    let heading = spiral.angle
+    let wasResting = spiral.resting
+    let biggest = 0
+
+    runUntil(world, 30, () => {
+      if (wasResting && !spiral.resting) {
+        const turn = Math.abs(Math.atan2(Math.sin(spiral.angle - heading), Math.cos(spiral.angle - heading)))
+        biggest = Math.max(biggest, turn)
+      }
+      // A bounce off the edge of the screen turns it too, and that isn't a
+      // dart choosing a direction, so the heading is taken fresh every tick.
+      heading = spiral.angle
+      wasResting = spiral.resting
+      return false
+    })
+
+    expect(biggest).toBeGreaterThan(0)
+    expect(biggest).toBeLessThanOrEqual(limit + 1e-9)
+  })
+
+  it('heads for the tissue when it finds itself out in open space', () => {
+    const world = worldWith([])
+    // The top-left corner, well away from any tissue.
+    const spiral = placeBacterium(world, 20, 20, 'blue-spiral')
+    spiral.wanderIn = 0
+
+    const touching = () =>
+      world.bodyCells.some(
+        (cell) => cell.alive && gap(cell, spiral) <= cell.radius + blueSpiral.radius + TOUCHING_SLACK,
+      )
+
+    // Measured: about 5 seconds. A spiral just drifting about took far longer,
+    // and on the Petri Dish one sat in the open for half a minute.
+    expect(runUntil(world, 15, touching)).not.toBeNull()
+  })
+
+  it('keeps to the tissue rather than wandering off it', () => {
+    const world = worldWith([])
+    const middle = world.bodyCells[Math.floor(world.bodyCells.length / 2)]
+    const spiral = placeBacterium(world, middle.x, middle.y, 'blue-spiral')
+    spiral.wanderIn = 0
+
+    let on = 0
+    let ticks = 0
+    runUntil(world, 30, () => {
+      ticks++
+      if (world.bodyCells.some((cell) => cell.alive && gap(cell, spiral) <= cell.radius + blueSpiral.radius + TOUCHING_SLACK)) on++
+      return false
+    })
+
+    // Measured: about 80% of the time, over ten runs.
+    expect(on / ticks).toBeGreaterThan(0.6)
+  })
+
+  it('corkscrews through tissue at full speed, where other bacteria are slowed', () => {
+    expect(blueSpiral.fullSpeedThroughTissue).toBe(true)
+    expect(blueBacteria.fullSpeedThroughTissue).toBeFalsy()
+
+    const world = worldWith([])
+    const middle = world.bodyCells[Math.floor(world.bodyCells.length / 2)]
+    const spiral = placeBacterium(world, middle.x, middle.y, 'blue-spiral')
+    spiral.wanderIn = 0
+
+    let travelled = 0
+    let last = { x: spiral.x, y: spiral.y }
+    runUntil(world, 30, () => {
+      travelled += gap(last, spiral)
+      last = { x: spiral.x, y: spiral.y }
+      return false
+    })
+
+    // Measured: 28.8, the same as in open space. Slowed like a rod it was 23.6.
+    expect(travelled / 30).toBeCloseTo(spiralAverageSpeed(blueSpiral), 0)
   })
 
   it('gets about at its average speed in open space, darts and rests together', () => {
