@@ -1,8 +1,10 @@
+import { balance } from '../content/balance'
 import { cocciRadius, type PathogenDef } from '../content/pathogens'
 import { clamp, distance, type Size, type Vec2 } from './geometry'
 import type { ImmuneCell } from './immuneCells'
 import { isTrapped, type Net } from './nets'
 import type { Rng } from './rng'
+import { stickyTarget } from './targeting'
 import type { BodyCell } from './tissue'
 
 export interface Pathogen {
@@ -28,6 +30,16 @@ export interface Pathogen {
   divideIn: number
   /** Seconds until it picks a new direction to wander in. */
   wanderIn: number
+  /**
+   * The body cell it is going for, or null. Remembered so it sticks with one
+   * instead of flickering between two the same distance away.
+   */
+  targetId: number | null
+  /**
+   * Whether it is running away right now. Once it starts it keeps going until
+   * it is well clear — see `balance.stopFleeingMargin`.
+   */
+  fleeing: boolean
 }
 
 export interface PathogenContext {
@@ -117,7 +129,14 @@ export function updatePathogen(
   // can do is sit there being poisoned, which is exactly what a NET is for.
   if (isTrapped(pathogen, ctx.nets)) return
 
-  const target = nearestBodyCellInRange(ctx.bodyCells, pathogen, def.visionRange)
+  const target = stickyTarget(
+    pathogen,
+    def.visionRange,
+    ctx.bodyCells,
+    isAlive,
+    pathogen.targetId,
+  )
+  pathogen.targetId = target?.id ?? null
   const biting =
     target !== undefined &&
     distance(pathogen.x, pathogen.y, target.x, target.y) <=
@@ -127,10 +146,20 @@ export function updatePathogen(
   // coward and drops its meal to run; a green cocci crawls, so running could
   // only ever delay things — it commits the moment its teeth are in and carries
   // on eating while you take it apart.
-  const hunter = nearestHunterInRange(ctx.immuneCells, pathogen, def.fleeRange ?? 0)
+  //
+  // Already running, it looks further: it only calms down once it is well
+  // clear, not the moment it steps over the line it panicked at.
+  const calmRange = (def.fleeRange ?? 0) * (1 + balance.stopFleeingMargin)
+  const fleeRange = pathogen.fleeing ? calmRange : (def.fleeRange ?? 0)
+  const hunters = huntersInRange(ctx.immuneCells, pathogen, fleeRange, calmRange)
+  pathogen.fleeing = hunters !== undefined && (!biting || def.fleeWhileEating === true)
 
-  if (hunter && (!biting || def.fleeWhileEating)) {
-    pathogen.angle = Math.atan2(pathogen.y - hunter.y, pathogen.x - hunter.x)
+  if (hunters && pathogen.fleeing) {
+    // Straight away from the middle of them all. Exactly on top of the middle
+    // — boxed in evenly on every side — it keeps going the way it was.
+    if (hunters.x !== pathogen.x || hunters.y !== pathogen.y) {
+      pathogen.angle = Math.atan2(pathogen.y - hunters.y, pathogen.x - hunters.x)
+    }
     swim(pathogen, def, ctx)
     return
   }
@@ -188,54 +217,56 @@ function swim(pathogen: Pathogen, def: PathogenDef, ctx: PathogenContext): void 
 }
 
 /**
- * The immune cell a nervous bacterium is most worried about: the nearest living
- * one inside `range`, or nothing at all when `range` is 0, which is every
- * colour up to red.
+ * What a nervous bacterium is running from: the middle of every living immune
+ * cell inside `range`, or nothing at all when none are there or `range` is 0,
+ * which is every colour up to red.
+ *
+ * The middle of them all rather than the nearest one, so a bacterium between
+ * two hunters the same distance away doesn't flick back and forth between
+ * running from one and running from the other.
+ *
+ * Closer hunters count for more, fading to nothing at `fadeRange`. Counted
+ * equally, a hunter drifting in and out over the edge of the range would make
+ * the middle jump about, and the bacterium would jerk round every time it did.
  *
  * A cell part-way through digesting still counts. It can't chase and it can't
  * bite, but a bacterium has no way of knowing that, and a green that parked
  * itself against a full macrophage would read as a bug rather than as nerve.
  */
-function nearestHunterInRange(
+function huntersInRange(
   immuneCells: ImmuneCell[],
   pathogen: Pathogen,
   range: number,
-): ImmuneCell | undefined {
+  fadeRange: number,
+): Vec2 | undefined {
   if (range <= 0) return undefined
 
-  let best: ImmuneCell | undefined
-  let bestDistance = range
+  let x = 0
+  let y = 0
+  let weight = 0
+  let count = 0
 
   for (const cell of immuneCells) {
     if (!cell.alive) continue
 
     const away = distance(pathogen.x, pathogen.y, cell.x, cell.y)
-    if (away < bestDistance) {
-      bestDistance = away
-      best = cell
-    }
+    if (away >= range) continue
+    count++
+
+    const w = 1 - away / fadeRange
+    x += cell.x * w
+    y += cell.y * w
+    weight += w
   }
 
-  return best
+  if (count === 0) return undefined
+  // In range but every one of them right on the fade line: nothing to tell it
+  // which way, so it runs straight on.
+  if (weight <= 0) return { x: pathogen.x, y: pathogen.y }
+
+  return { x: x / weight, y: y / weight }
 }
 
-function nearestBodyCellInRange(
-  bodyCells: BodyCell[],
-  pathogen: Pathogen,
-  range: number,
-): BodyCell | undefined {
-  let best: BodyCell | undefined
-  let bestDistance = range
-
-  for (const cell of bodyCells) {
-    if (!cell.alive) continue
-
-    const away = distance(pathogen.x, pathogen.y, cell.x, cell.y)
-    if (away < bestDistance) {
-      bestDistance = away
-      best = cell
-    }
-  }
-
-  return best
+function isAlive(bodyCell: BodyCell): boolean {
+  return bodyCell.alive
 }

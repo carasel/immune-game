@@ -123,6 +123,33 @@ export const balance = {
   mutationDownChance: 0.05,
 
   // ---------------------------------------------------------------------------
+  // TARGETS
+  // How cells and bacteria choose what to go after.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * How stubborn anything is about the target it already picked. Once it is
+   * going for something, it only swaps to a different one if that one is this
+   * much closer.
+   *
+   * 0.2 means 20% closer: going for something 100 away, it only swaps to
+   * something nearer than 80. 0 swaps the instant anything is a hair closer,
+   * which makes cells flicker between two targets the same distance away.
+   * 1 never swaps until the first target is gone.
+   */
+  retargetMargin: 0.2,
+
+  /**
+   * How far past its flee range a bacterium has to get before it stops running
+   * and goes back to eating. 0.2 means 20% further: one that panics at 120
+   * keeps running until nothing is within 144.
+   *
+   * 0 makes it shudder on the edge: one step towards its food takes it back
+   * inside 120, so it turns and runs, which takes it outside, and so on.
+   */
+  stopFleeingMargin: 0.2,
+
+  // ---------------------------------------------------------------------------
   // IMMUNE CELLS
   // Each cell type's own numbers live in content/cells.ts. These apply to all of
   // them at once.

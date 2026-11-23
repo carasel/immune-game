@@ -125,6 +125,8 @@ describe('mutating as they divide', () => {
       alive: true,
       divideIn: 1,
       wanderIn: Number.MAX_SAFE_INTEGER,
+      targetId: null,
+      fleeing: false,
     })
 
     run(world, seconds)
@@ -173,6 +175,8 @@ describe('mutating as they divide', () => {
         alive: true,
         divideIn: 1,
         wanderIn: Number.MAX_SAFE_INTEGER,
+        targetId: null,
+        fleeing: false,
       })
     }
 
@@ -254,6 +258,8 @@ describe('mutating as they divide', () => {
       alive: true,
       divideIn: 1,
       wanderIn: Number.MAX_SAFE_INTEGER,
+      targetId: null,
+      fleeing: false,
     })
     run(world, 180)
 

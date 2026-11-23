@@ -5,6 +5,7 @@ import { findPathogen } from '../content/pathogens'
 import { clamp, distance, type Size, type Vec2 } from './geometry'
 import { loseBall, pathogenRadius, type Pathogen } from './pathogens'
 import type { Rng } from './rng'
+import { nearestInRange, stickyTarget } from './targeting'
 import type { BodyCell } from './tissue'
 
 /**
@@ -79,6 +80,13 @@ export interface ImmuneCell {
    * the moment the order is done with.
    */
   order: Order | null
+  /**
+   * The pathogen it is hunting, or null. Remembered so it sticks with one
+   * instead of flickering between two the same distance away.
+   */
+  preyId: number | null
+  /** The same for the dead body cell it is going to clear up. */
+  huskId: number | null
   /**
    * When it died, in level seconds, or null while it is alive. Dead cells stay
    * in the list so the player can see them go — a cell that vanishes between
@@ -222,7 +230,8 @@ export function updateImmuneCell(
     cell.wanderIn = def.wanderChangeSeconds
   }
 
-  const prey = nearestPathogenInRange(cell, def.visionRange, ctx.pathogens)
+  const prey = stickyTarget(cell, def.visionRange, ctx.pathogens, isAlive, cell.preyId)
+  cell.preyId = prey?.id ?? null
   if (prey) {
     cell.angle = Math.atan2(prey.y - cell.y, prey.x - cell.x)
 
@@ -238,7 +247,8 @@ export function updateImmuneCell(
   // Clearing up is the macrophage's job. A cell with no clean-up stats — a
   // neutrophil — walks straight past the mess.
   if (def.engulfDebrisSeconds !== undefined) {
-    const husk = nearestDebrisInRange(cell, def.visionRange, ctx.bodyCells)
+    const husk = stickyTarget(cell, def.visionRange, ctx.bodyCells, isDebris, cell.huskId)
+    cell.huskId = husk?.id ?? null
 
     if (husk) {
       cell.angle = Math.atan2(husk.y - cell.y, husk.x - cell.x)
@@ -478,40 +488,14 @@ function nearestPathogenInRange(
   range: number,
   pathogens: Pathogen[],
 ): Pathogen | undefined {
-  let best: Pathogen | undefined
-  let bestDistance = range
+  return nearestInRange(cell, range, pathogens, isAlive)
+}
 
-  for (const pathogen of pathogens) {
-    if (!pathogen.alive) continue
-
-    const away = distance(cell.x, cell.y, pathogen.x, pathogen.y)
-    if (away < bestDistance) {
-      bestDistance = away
-      best = pathogen
-    }
-  }
-
-  return best
+function isAlive(pathogen: Pathogen): boolean {
+  return pathogen.alive
 }
 
 /** The outline a dead body cell left behind, waiting to be cleared. */
-function nearestDebrisInRange(
-  cell: ImmuneCell,
-  range: number,
-  bodyCells: BodyCell[],
-): BodyCell | undefined {
-  let best: BodyCell | undefined
-  let bestDistance = range
-
-  for (const bodyCell of bodyCells) {
-    if (!bodyCell.debris) continue
-
-    const away = distance(cell.x, cell.y, bodyCell.x, bodyCell.y)
-    if (away < bestDistance) {
-      bestDistance = away
-      best = bodyCell
-    }
-  }
-
-  return best
+function isDebris(bodyCell: BodyCell): boolean {
+  return bodyCell.debris
 }
