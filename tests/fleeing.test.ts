@@ -201,15 +201,20 @@ describe('a green cocci, which runs but will not be driven off its meal', () => 
   it('keeps eating once its teeth are in, macrophage or no macrophage', () => {
     const world = worldWith(oneMacrophage)
     const cell = firstOfType(world, 'macrophage')
-    const victim = setEating(world, cell, 'green-cocci')
+    setEating(world, cell, 'green-cocci')
     const clump = world.pathogens[0]
 
     cell.x = clump.x + 60
     cell.y = clump.y
 
-    const health = victim.health
+    // The tissue as a whole, not the one cell it started on. A clump is as big as
+    // a body cell, and once it has pushed its way in it can be touching two or
+    // three of them at once and bite whichever is nearest that tick.
+    const tissueHealth = () => world.bodyCells.reduce((sum, body) => sum + body.health, 0)
+    const health = tissueHealth()
     run(world, 1)
 
-    expect(victim.health).toBeLessThan(health)
+    expect(tissueHealth()).toBeLessThan(health)
+    expect(clump.alive).toBe(true)
   })
 })
